@@ -18,6 +18,7 @@ export function PresetPatterns({
 }: PresetPatternsProps) {
   const [category, setCategory] = useState('all')
   const [search, setSearch] = useState('')
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
 
   const { loadFrames } = store
 
@@ -65,31 +66,41 @@ export function PresetPatterns({
 
       {/* Patterns Grid */}
       <div className="flex-1 overflow-y-auto pr-2">
-        <div className="grid grid-cols-3 gap-3 md:grid-cols-4 lg:grid-cols-5">
-          {filteredPresets.map((preset) => (
-            <button
-              key={preset.id}
-              onClick={() => handleSelect(preset)}
-              className="group flex flex-col items-center gap-2 rounded border border-zinc-200 bg-white p-3 transition-all hover:border-zinc-900 hover:shadow-sm"
-            >
-              <div className="flex items-center justify-center p-2 opacity-80 transition-opacity group-hover:opacity-100">
-                <Matrix
-                  rows={preset.size}
-                  cols={preset.size}
-                  frames={preset.frames}
-                  fps={12}
-                  loop
-                  size={4}
-                  gap={1}
-                  palette={{ on: '#18181b', off: '#f4f4f5' }}
-                  glow={false}
-                />
-              </div>
-              <span className="w-full truncate text-center font-mono text-[9px] text-zinc-500 group-hover:text-zinc-900">
-                {preset.name}
-              </span>
-            </button>
-          ))}
+        <div className="grid grid-cols-4 gap-x-2 gap-y-4 sm:grid-cols-5 md:grid-cols-6 mb-4">
+          {filteredPresets.map((preset) => {
+            const isHovered = hoveredId === preset.id
+            // Show first frame as static preview, animate only on hover
+            const showFrames = isHovered && preset.frames.length > 1
+
+            return (
+              <button
+                key={preset.id}
+                onClick={() => handleSelect(preset)}
+                onMouseEnter={() => setHoveredId(preset.id)}
+                onMouseLeave={() => setHoveredId(null)}
+                className="group flex flex-col items-center gap-1.5 focus:outline-none"
+              >
+                <div className="relative flex items-center justify-center p-1 transition-transform group-hover:scale-110">
+                  <Matrix
+                    rows={preset.size}
+                    cols={preset.size}
+                    pattern={showFrames ? undefined : preset.frames[0]}
+                    frames={showFrames ? preset.frames : undefined}
+                    fps={12}
+                    loop
+                    paused={!isHovered}
+                    size={3}
+                    gap={1}
+                    palette={{ on: '#06b6d4', off: '#27272a' }}
+                    glow={isHovered}
+                  />
+                </div>
+                <span className="w-full truncate text-center font-mono text-[9px] tracking-tight text-zinc-400 group-hover:text-zinc-200">
+                  {preset.name}
+                </span>
+              </button>
+            )
+          })}
         </div>
 
         {filteredPresets.length === 0 && (

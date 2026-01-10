@@ -6,7 +6,10 @@ import {
   Undo2,
   Redo2,
   Sparkles,
-  Grid3X3,
+  Play,
+  Pause,
+  Repeat,
+  Gauge,
 } from 'lucide-react'
 import type { EditorStore, Tool } from '../../stores/editorStore'
 
@@ -61,6 +64,12 @@ export function EditorToolbar({ store }: EditorToolbarProps) {
     setGridSize,
     setPalette,
     toggleGlow,
+    togglePaused,
+    toggleLoop,
+    setFps,
+    setBloomIntensity,
+    setTransitionSpeed,
+    setFadeIntensity,
     clearFrame,
     undo,
     redo,
@@ -203,6 +212,134 @@ export function EditorToolbar({ store }: EditorToolbarProps) {
               title={preset.label}
             />
           ))}
+        </div>
+      </div>
+
+      {/* Effect Controls Group */}
+      <div className="space-y-3">
+        <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+          Effects
+        </label>
+
+        {/* FPS Slider */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-zinc-500 flex items-center gap-1">
+              <Gauge className="h-3 w-3" />
+              FPS
+            </span>
+            <span className="text-[10px] font-mono text-zinc-700">
+              {state.fps}
+            </span>
+          </div>
+          <input
+            type="range"
+            min="1"
+            max="60"
+            value={state.fps}
+            onChange={(e) => setFps(Number(e.target.value))}
+            className="w-full h-1.5 bg-zinc-200 rounded-lg appearance-none cursor-pointer accent-zinc-900"
+          />
+        </div>
+
+        {/* Playback Controls */}
+        <div className="flex gap-2">
+          <button
+            onClick={togglePaused}
+            className={`flex flex-1 items-center justify-center gap-1.5 border py-2 text-xs font-medium transition-all ${
+              state.isPaused
+                ? 'border-amber-500 bg-amber-50 text-amber-700'
+                : 'border-zinc-200 text-zinc-500 hover:border-zinc-400 hover:text-zinc-900'
+            }`}
+            title={state.isPaused ? 'Resume' : 'Pause'}
+          >
+            {state.isPaused ? (
+              <>
+                <Play className="h-3.5 w-3.5" />
+                PAUSED
+              </>
+            ) : (
+              <>
+                <Pause className="h-3.5 w-3.5" />
+                PAUSE
+              </>
+            )}
+          </button>
+          <button
+            onClick={toggleLoop}
+            className={`flex flex-1 items-center justify-center gap-1.5 border py-2 text-xs font-medium transition-all ${
+              state.loop
+                ? 'border-zinc-900 bg-zinc-50 text-zinc-900'
+                : 'border-zinc-200 text-zinc-500 hover:border-zinc-400 hover:text-zinc-900'
+            }`}
+            title={state.loop ? 'Looping On' : 'Looping Off'}
+          >
+            <Repeat className="h-3.5 w-3.5" />
+            {state.loop ? 'LOOP' : 'ONCE'}
+          </button>
+        </div>
+      </div>
+
+      {/* Visual Effects Group */}
+      <div className="space-y-3">
+        <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+          Visual FX
+        </label>
+
+        {/* Bloom Intensity Slider */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-zinc-500">Bloom</span>
+            <span className="text-[10px] font-mono text-zinc-700">
+              {state.bloomIntensity}%
+            </span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={state.bloomIntensity}
+            onChange={(e) => setBloomIntensity(Number(e.target.value))}
+            className="w-full h-1.5 bg-zinc-200 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+          />
+        </div>
+
+        {/* Fade Intensity Slider */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-zinc-500">Fade</span>
+            <span className="text-[10px] font-mono text-zinc-700">
+              {state.fadeIntensity}%
+            </span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={state.fadeIntensity}
+            onChange={(e) => setFadeIntensity(Number(e.target.value))}
+            className="w-full h-1.5 bg-zinc-200 rounded-lg appearance-none cursor-pointer accent-violet-500"
+          />
+        </div>
+
+        {/* Transition Speed */}
+        <div className="space-y-1.5">
+          <span className="text-[10px] text-zinc-500">Transition</span>
+          <div className="flex bg-zinc-100 p-1 rounded-md">
+            {(['slow', 'normal', 'fast'] as const).map((speed) => (
+              <button
+                key={speed}
+                onClick={() => setTransitionSpeed(speed)}
+                className={`flex-1 py-1 rounded text-[10px] font-medium transition-all ${
+                  state.transitionSpeed === speed
+                    ? 'bg-white text-zinc-900 shadow-sm'
+                    : 'text-zinc-500 hover:text-zinc-900'
+                }`}
+              >
+                {speed.toUpperCase()}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

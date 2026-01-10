@@ -18,6 +18,7 @@ interface MatrixProps extends React.HTMLAttributes<HTMLDivElement> {
   fps?: number
   autoplay?: boolean
   loop?: boolean
+  paused?: boolean
   size?: number
   gap?: number
   palette?: {
@@ -30,6 +31,9 @@ interface MatrixProps extends React.HTMLAttributes<HTMLDivElement> {
   mode?: MatrixMode
   levels?: number[]
   glow?: boolean
+  bloomIntensity?: number // 0-100
+  fadeIntensity?: number // 0-100
+  transitionSpeed?: 'slow' | 'normal' | 'fast'
 }
 
 function clamp(value: number): number {
@@ -54,6 +58,7 @@ function useAnimation(
     fps: number
     autoplay: boolean
     loop: boolean
+    paused?: boolean
     onFrame?: (index: number) => void
   },
 ): { frameIndex: number; isPlaying: boolean } {
@@ -64,6 +69,15 @@ function useAnimation(
   const accumulatorRef = useRef<number>(0)
 
   useEffect(() => {
+    // Don't run animation if paused externally
+    if (options.paused) {
+      if (frameIdRef.current) {
+        cancelAnimationFrame(frameIdRef.current)
+        frameIdRef.current = undefined
+      }
+      return
+    }
+
     if (!frames || frames.length === 0 || !isPlaying) {
       return
     }
@@ -108,7 +122,14 @@ function useAnimation(
         cancelAnimationFrame(frameIdRef.current)
       }
     }
-  }, [frames, isPlaying, options.fps, options.loop, options.onFrame])
+  }, [
+    frames,
+    isPlaying,
+    options.fps,
+    options.loop,
+    options.onFrame,
+    options.paused,
+  ])
 
   useEffect(() => {
     setFrameIndex(0)
@@ -163,6 +184,7 @@ export function Matrix({
   fps = 12,
   autoplay = true,
   loop = true,
+  paused = false,
   size = 10,
   gap = 2,
   palette = {
@@ -175,6 +197,9 @@ export function Matrix({
   mode = 'default',
   levels,
   glow = true,
+  bloomIntensity = 75,
+  fadeIntensity = 80,
+  transitionSpeed = 'normal',
   className,
   ...props
 }: MatrixProps) {
@@ -188,6 +213,7 @@ export function Matrix({
     fps,
     autoplay: autoplay && !pattern,
     loop,
+    paused,
     onFrame,
   })
 
@@ -257,33 +283,102 @@ export function Matrix({
         style={{ overflow: 'visible' }}
       >
         <defs>
+          {/* Enhanced radial gradient with more gradual multi-stop opacity fading */}
           <radialGradient id={pixelOnId} cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor="var(--matrix-on)" stopOpacity="1" />
             <stop
-              offset="70%"
+              offset="15%"
               stopColor="var(--matrix-on)"
-              stopOpacity="0.85"
+              stopOpacity="0.98"
+            />
+            <stop
+              offset="30%"
+              stopColor="var(--matrix-on)"
+              stopOpacity="0.92"
+            />
+            <stop
+              offset="45%"
+              stopColor="var(--matrix-on)"
+              stopOpacity="0.82"
+            />
+            <stop
+              offset="60%"
+              stopColor="var(--matrix-on)"
+              stopOpacity="0.68"
+            />
+            <stop
+              offset="75%"
+              stopColor="var(--matrix-on)"
+              stopOpacity="0.50"
+            />
+            <stop
+              offset="88%"
+              stopColor="var(--matrix-on)"
+              stopOpacity="0.30"
             />
             <stop
               offset="100%"
               stopColor="var(--matrix-on)"
-              stopOpacity="0.6"
+              stopOpacity="0.15"
             />
           </radialGradient>
 
+          {/* Off state gradient with subtle fade */}
           <radialGradient id={pixelOffId} cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="var(--matrix-off)" stopOpacity="1" />
+            <stop offset="0%" stopColor="var(--matrix-off)" stopOpacity="0.8" />
+            <stop
+              offset="40%"
+              stopColor="var(--matrix-off)"
+              stopOpacity="0.5"
+            />
+            <stop
+              offset="70%"
+              stopColor="var(--matrix-off)"
+              stopOpacity="0.25"
+            />
             <stop
               offset="100%"
               stopColor="var(--matrix-off)"
-              stopOpacity="0.7"
+              stopOpacity="0.08"
             />
           </radialGradient>
 
+          {/* Enhanced bloom filter with multiple blur layers */}
           {glow && (
-            <filter id={glowId} x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="2" result="blur" />
-              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            <filter id={glowId} x="-100%" y="-100%" width="300%" height="300%">
+              {/* Inner bright core */}
+              <feGaussianBlur
+                in="SourceGraphic"
+                stdDeviation="1"
+                result="blur1"
+              />
+              {/* Medium bloom spread */}
+              <feGaussianBlur
+                in="SourceGraphic"
+                stdDeviation="3"
+                result="blur2"
+              />
+              {/* Outer soft bloom */}
+              <feGaussianBlur
+                in="SourceGraphic"
+                stdDeviation="6"
+                result="blur3"
+              />
+              {/* Far outer glow haze */}
+              <feGaussianBlur
+                in="SourceGraphic"
+                stdDeviation="10"
+                result="blur4"
+              />
+
+              {/* Merge all bloom layers */}
+              <feMerge>
+                <feMergeNode in="blur4" />
+                <feMergeNode in="blur3" />
+                <feMergeNode in="blur2" />
+                <feMergeNode in="blur1" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
             </filter>
           )}
         </defs>
@@ -291,12 +386,54 @@ export function Matrix({
         <style>
           {`
             .matrix-pixel {
-              transition: opacity 300ms ease-out, transform 150ms ease-out;
+              transition: 
+                opacity ${transitionSpeed === 'slow' ? '600ms' : transitionSpeed === 'fast' ? '250ms' : '450ms'} cubic-bezier(0.4, 0, 0.2, 1),
+                transform ${transitionSpeed === 'slow' ? '300ms' : transitionSpeed === 'fast' ? '100ms' : '200ms'} cubic-bezier(0.4, 0, 0.2, 1),
+                filter ${transitionSpeed === 'slow' ? '500ms' : transitionSpeed === 'fast' ? '200ms' : '350ms'} ease-out;
               transform-origin: center;
               transform-box: fill-box;
             }
+            
+            /* CSS-only bloom effect using drop-shadow layers - scaled by bloomIntensity */
             .matrix-pixel-active-${instanceId} {
-              ${glow ? `filter: url(#${glowId});` : ''}
+              ${
+                glow && bloomIntensity > 0
+                  ? `filter: url(#${glowId}) 
+                drop-shadow(0 0 ${Math.round((2 * bloomIntensity) / 100)}px var(--matrix-on))
+                drop-shadow(0 0 ${Math.round((4 * bloomIntensity) / 100)}px var(--matrix-on))
+                drop-shadow(0 0 ${Math.round((8 * bloomIntensity) / 100)}px var(--matrix-on))
+                drop-shadow(0 0 ${Math.round((16 * bloomIntensity) / 100)}px var(--matrix-on));`
+                  : ''
+              }
+            }
+            
+            /* Medium intensity bloom */
+            .matrix-pixel-medium-${instanceId} {
+              ${
+                glow && bloomIntensity > 0
+                  ? `filter: 
+                drop-shadow(0 0 ${Math.round((1 * bloomIntensity) / 100)}px var(--matrix-on))
+                drop-shadow(0 0 ${Math.round((3 * bloomIntensity) / 100)}px var(--matrix-on))
+                drop-shadow(0 0 ${Math.round((6 * bloomIntensity) / 100)}px var(--matrix-on));`
+                  : ''
+              }
+            }
+            
+            /* Low intensity with subtle fade */
+            .matrix-pixel-low-${instanceId} {
+              ${
+                glow && bloomIntensity > 0
+                  ? `filter: 
+                drop-shadow(0 0 ${Math.round((1 * bloomIntensity) / 100)}px var(--matrix-on))
+                drop-shadow(0 0 ${Math.round((2 * bloomIntensity) / 100)}px var(--matrix-on));`
+                  : ''
+              }
+            }
+            
+            /* Fading out animation state */
+            .matrix-pixel-fading-${instanceId} {
+              opacity: ${((100 - fadeIntensity) / 100) * 0.15};
+              transition: opacity ${transitionSpeed === 'slow' ? '800ms' : transitionSpeed === 'fast' ? '300ms' : '600ms'} cubic-bezier(0.4, 0, 0.2, 1);
             }
           `}
         </style>
@@ -307,26 +444,38 @@ export function Matrix({
             if (!pos) return null
 
             const opacity = clamp(brightness * value)
-            const isActive = opacity > 0.5
+            // Tiered intensity levels for bloom effects
+            const isHighIntensity = opacity > 0.7
+            const isMediumIntensity = opacity > 0.3 && opacity <= 0.7
+            const isLowIntensity = opacity > 0.05 && opacity <= 0.3
             const isOn = opacity > 0.05
             const fill = isOn ? `url(#${pixelOnId})` : `url(#${pixelOffId})`
 
-            const scale = isActive ? 1.1 : 1
+            // Scale varies with intensity for more dramatic effect
+            const scale = isHighIntensity ? 1.15 : isMediumIntensity ? 1.08 : 1
             const radius = (size / 2) * 0.9
+
+            // Determine which bloom class to apply based on intensity
+            const getBloomClass = () => {
+              if (isHighIntensity) return `matrix-pixel-active-${instanceId}`
+              if (isMediumIntensity) return `matrix-pixel-medium-${instanceId}`
+              if (isLowIntensity) return `matrix-pixel-low-${instanceId}`
+              return ''
+            }
 
             return (
               <circle
                 key={`${rowIndex}-${colIndex}`}
                 className={cn(
                   'matrix-pixel',
-                  isActive && `matrix-pixel-active-${instanceId}`,
+                  getBloomClass(),
                   !isOn && 'opacity-20',
                 )}
                 cx={pos.x + size / 2}
                 cy={pos.y + size / 2}
                 r={radius}
                 fill={fill}
-                opacity={isOn ? opacity : 0.1}
+                opacity={isOn ? opacity : 0.08}
                 style={{
                   transform: `scale(${scale})`,
                 }}

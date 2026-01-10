@@ -69,6 +69,117 @@ export const checkerboard: Frame = [
   [1, 0, 1, 0, 1, 0, 1, 0, 1],
 ]
 
+// ============================================================================
+// NEW GEOMETRIC PATTERNS (Reference Style)
+// ============================================================================
+
+// --- Points ---
+export const soloCenter: Frame = emptyFrame(9, 9).map((row, r) =>
+  row.map((_, c) => (r === 4 && c === 4 ? 1 : 0)),
+)
+
+export const soloTl: Frame = emptyFrame(9, 9).map((row, r) =>
+  row.map((_, c) => (r === 0 && c === 0 ? 1 : 0)),
+)
+
+export const soloBr: Frame = emptyFrame(9, 9).map((row, r) =>
+  row.map((_, c) => (r === 8 && c === 8 ? 1 : 0)),
+)
+
+// --- Lines ---
+export const lineHTop: Frame = emptyFrame(9, 9).map((row, r) =>
+  row.map((_, c) => (r === 0 ? 1 : 0)),
+)
+
+export const lineHMid: Frame = emptyFrame(9, 9).map((row, r) =>
+  row.map((_, c) => (r === 4 ? 1 : 0)),
+)
+
+export const lineHBot: Frame = emptyFrame(9, 9).map((row, r) =>
+  row.map((_, c) => (r === 8 ? 1 : 0)),
+)
+
+export const lineVLeft: Frame = emptyFrame(9, 9).map((row, r) =>
+  row.map((_, c) => (c === 0 ? 1 : 0)),
+)
+
+export const lineVMid: Frame = emptyFrame(9, 9).map((row, r) =>
+  row.map((_, c) => (c === 4 ? 1 : 0)),
+)
+
+export const lineVRight: Frame = emptyFrame(9, 9).map((row, r) =>
+  row.map((_, c) => (c === 8 ? 1 : 0)),
+)
+
+export const lineDiag1: Frame = emptyFrame(9, 9).map((row, r) =>
+  row.map((_, c) => (r === c ? 1 : 0)),
+)
+
+export const lineDiag2: Frame = emptyFrame(9, 9).map((row, r) =>
+  row.map((_, c) => (r === 8 - c ? 1 : 0)),
+)
+
+// --- Shapes ---
+export const cornersOnly: Frame = emptyFrame(9, 9).map((row, r) =>
+  row.map((_, c) => ((r === 0 || r === 8) && (c === 0 || c === 8) ? 1 : 0)),
+)
+
+export const square1: Frame = emptyFrame(9, 9).map((row, r) =>
+  row.map((_, c) => (r >= 3 && r <= 5 && c >= 3 && c <= 5 ? 1 : 0)),
+)
+
+export const square2: Frame = emptyFrame(9, 9).map((row, r) =>
+  row.map((_, c) =>
+    (r >= 2 && r <= 6 && (c === 2 || c === 6)) ||
+    (c >= 2 && c <= 6 && (r === 2 || r === 6))
+      ? 1
+      : 0,
+  ),
+)
+
+// L Shapes
+export const lTl: Frame = emptyFrame(9, 9).map((row, r) =>
+  row.map((_, c) => ((r === 0 && c <= 4) || (c === 0 && r <= 4) ? 1 : 0)),
+)
+
+export const lTr: Frame = emptyFrame(9, 9).map((row, r) =>
+  row.map((_, c) => ((r === 0 && c >= 4) || (c === 8 && r <= 4) ? 1 : 0)),
+)
+
+export const lBl: Frame = emptyFrame(9, 9).map((row, r) =>
+  row.map((_, c) => ((r === 8 && c <= 4) || (c === 0 && r >= 4) ? 1 : 0)),
+)
+
+export const lBr: Frame = emptyFrame(9, 9).map((row, r) =>
+  row.map((_, c) => ((r === 8 && c >= 4) || (c === 8 && r >= 4) ? 1 : 0)),
+)
+
+// T Shapes
+export const tTop: Frame = emptyFrame(9, 9).map((row, r) =>
+  row.map((_, c) => (r === 0 || (c === 4 && r <= 4) ? 1 : 0)),
+)
+
+export const tBot: Frame = emptyFrame(9, 9).map((row, r) =>
+  row.map((_, c) => (r === 8 || (c === 4 && r >= 4) ? 1 : 0)),
+)
+
+// Frames
+export const frameOuter: Frame = emptyFrame(9, 9).map((row, r) =>
+  row.map((_, c) => (r === 0 || r === 8 || c === 0 || c === 8 ? 1 : 0)),
+)
+
+export const frameInner: Frame = emptyFrame(9, 9).map((row, r) =>
+  row.map((_, c) =>
+    (r === 2 || r === 6 || c === 2 || c === 6) &&
+    r >= 2 &&
+    r <= 6 &&
+    c >= 2 &&
+    c <= 6
+      ? 1
+      : 0,
+  ),
+)
+
 export const rowsAlt: Frame = [
   [1, 1, 1, 1, 1, 1, 1, 1, 1],
   [0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -316,218 +427,441 @@ export function generatePulse(pattern: Frame, steps = 12): Frame[] {
 }
 
 // ============================================================================
+// ANIMATION HELPERS
+// ============================================================================
+
+export function generateShift(
+  frame: Frame,
+  direction: 'up' | 'down' | 'left' | 'right',
+  steps = 9,
+): Frame[] {
+  const frames: Frame[] = []
+  const size = frame.length
+
+  for (let s = 0; s < steps; s++) {
+    const newFrame = emptyFrame(size, size)
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
+        let srcR = r
+        let srcC = c
+
+        if (direction === 'up') srcR = (r + s) % size
+        if (direction === 'down') srcR = (r - s + size) % size
+        if (direction === 'left') srcC = (c + s) % size
+        if (direction === 'right') srcC = (c - s + size) % size
+
+        newFrame[r][c] = frame[srcR][srcC]
+      }
+    }
+    frames.push(newFrame)
+  }
+  return frames
+}
+
+export function generateRotate(frame: Frame, steps = 4): Frame[] {
+  const frames: Frame[] = [frame]
+  let current = frame
+
+  for (let i = 1; i < steps; i++) {
+    const next = emptyFrame(frame.length, frame.length)
+    // Rotate 90 degrees clockwise
+    for (let r = 0; r < frame.length; r++) {
+      for (let c = 0; c < frame.length; c++) {
+        next[c][frame.length - 1 - r] = current[r][c]
+      }
+    }
+    frames.push(next)
+    current = next
+  }
+  return frames
+}
+
+export function generateMarchingBorder(size = 9, steps = 12): Frame[] {
+  const frames: Frame[] = []
+  for (let s = 0; s < steps; s++) {
+    const frame = emptyFrame(size, size)
+    // Perimeter length approx size*4 - 4
+    const perimeter = (size - 1) * 4
+
+    for (let i = 0; i < perimeter; i++) {
+      // Calculate position based on index walking around perimeter
+      let r = 0,
+        c = 0
+      if (i < size - 1) {
+        // Top edge
+        r = 0
+        c = i
+      } else if (i < (size - 1) * 2) {
+        // Right edge
+        r = i - (size - 1)
+        c = size - 1
+      } else if (i < (size - 1) * 3) {
+        // Bottom edge
+        r = size - 1
+        c = (size - 1) * 3 - i // walking left
+      } else {
+        // Left edge
+        r = (size - 1) * 4 - i
+        c = 0 // walking up
+      }
+
+      // Dash pattern: 3 on, 1 off (or similar)
+      const val = (i - s) % 4 === 0 ? 1 : 0.2
+      frame[r][c] = val
+    }
+    frames.push(frame)
+  }
+  return frames
+}
+
+export function generateBlink(frame: Frame, steps = 12): Frame[] {
+  const frames: Frame[] = []
+  for (let s = 0; s < steps; s++) {
+    const brightness = s < steps / 2 ? 1 : 0.2
+    frames.push(
+      frame.map((row) => row.map((cell) => (cell > 0 ? brightness : 0))),
+    )
+  }
+  return frames
+}
+
+// ============================================================================
 // PRESET COLLECTION
 // ============================================================================
 
 export interface PresetPattern {
   id: string
   name: string
-  category: 'static' | 'wave' | 'diagonal' | 'ripple' | 'spiral' | 'other'
+  category:
+    | 'static'
+    | 'wave'
+    | 'diagonal'
+    | 'ripple'
+    | 'spiral'
+    | 'points'
+    | 'lines'
+    | 'shapes'
+    | 'frames'
+    | 'other'
   frames: Frame[]
   size: number
 }
 
 export const presets: PresetPattern[] = [
+  // --- Points (Pulse) ---
+  {
+    id: 'solo-center',
+    name: 'solo-center',
+    category: 'points',
+    frames: generatePulse(soloCenter),
+    size: 9,
+  },
+  {
+    id: 'solo-tl',
+    name: 'solo-tl',
+    category: 'points',
+    frames: generateBlink(soloTl),
+    size: 9,
+  },
+  {
+    id: 'solo-br',
+    name: 'solo-br',
+    category: 'points',
+    frames: generateBlink(soloBr),
+    size: 9,
+  },
+
+  // --- Lines (Flow) ---
+  {
+    id: 'line-h-top',
+    name: 'line-h-top',
+    category: 'lines',
+    frames: generateShift(lineHTop, 'right'),
+    size: 9,
+  },
+  {
+    id: 'line-h-mid',
+    name: 'line-h-mid',
+    category: 'lines',
+    frames: generateShift(lineHMid, 'left'),
+    size: 9,
+  },
+  {
+    id: 'line-h-bot',
+    name: 'line-h-bot',
+    category: 'lines',
+    frames: generateShift(lineHBot, 'right'),
+    size: 9,
+  },
+  {
+    id: 'line-v-left',
+    name: 'line-v-left',
+    category: 'lines',
+    frames: generateShift(lineVLeft, 'down'),
+    size: 9,
+  },
+  {
+    id: 'line-v-mid',
+    name: 'line-v-mid',
+    category: 'lines',
+    frames: generateShift(lineVMid, 'up'),
+    size: 9,
+  },
+  {
+    id: 'line-v-right',
+    name: 'line-v-right',
+    category: 'lines',
+    frames: generateShift(lineVRight, 'down'),
+    size: 9,
+  },
+  {
+    id: 'line-diag-1',
+    name: 'line-diag-1',
+    category: 'lines',
+    frames: generateShift(lineDiag1, 'right'),
+    size: 9,
+  },
+  {
+    id: 'line-diag-2',
+    name: 'line-diag-2',
+    category: 'lines',
+    frames: generateShift(lineDiag2, 'left'),
+    size: 9,
+  },
+
+  // --- Shapes (Rotate/Pulse) ---
+  {
+    id: 'corners-only',
+    name: 'corners-only',
+    category: 'shapes',
+    frames: generateRotate(cornersOnly),
+    size: 9,
+  },
+  {
+    id: 'square-1',
+    name: 'square-1',
+    category: 'shapes',
+    frames: generatePulse(square1),
+    size: 9,
+  },
+  {
+    id: 'square-2',
+    name: 'square-2',
+    category: 'shapes',
+    frames: generateRotate(square2),
+    size: 9,
+  },
+  {
+    id: 'l-tl',
+    name: 'l-tl',
+    category: 'shapes',
+    frames: generateRotate(lTl),
+    size: 9,
+  },
+  {
+    id: 'l-tr',
+    name: 'l-tr',
+    category: 'shapes',
+    frames: generateRotate(lTr),
+    size: 9,
+  },
+  {
+    id: 'l-bl',
+    name: 'l-bl',
+    category: 'shapes',
+    frames: generateRotate(lBl),
+    size: 9,
+  },
+  {
+    id: 'l-br',
+    name: 'l-br',
+    category: 'shapes',
+    frames: generateRotate(lBr),
+    size: 9,
+  },
+  {
+    id: 't-top',
+    name: 't-top',
+    category: 'shapes',
+    frames: generateRotate(tTop),
+    size: 9,
+  },
+  {
+    id: 't-bot',
+    name: 't-bot',
+    category: 'shapes',
+    frames: generateRotate(tBot),
+    size: 9,
+  },
+
+  // --- Frames (Marching) ---
+  {
+    id: 'frame-outer',
+    name: 'frame-outer',
+    category: 'frames',
+    frames: generateMarchingBorder(9),
+    size: 9,
+  },
+  {
+    id: 'frame-inner',
+    name: 'frame-inner',
+    category: 'frames',
+    frames: generatePulse(frameInner),
+    size: 9,
+  },
+
   // Static patterns
-  { id: 'cross', name: 'Cross', category: 'static', frames: [cross], size: 9 },
+  { id: 'cross', name: 'cross', category: 'static', frames: [cross], size: 9 },
   {
     id: 'x-shape',
-    name: 'X Shape',
+    name: 'x-shape',
     category: 'static',
     frames: [xShape],
     size: 9,
   },
   {
     id: 'diamond',
-    name: 'Diamond',
+    name: 'diamond',
     category: 'static',
     frames: [diamond],
     size: 9,
   },
   {
-    id: 'corners',
-    name: 'Corners',
-    category: 'static',
-    frames: [corners],
-    size: 9,
-  },
-  {
     id: 'checkerboard',
-    name: 'Checkerboard',
+    name: 'checkerboard',
     category: 'static',
     frames: [checkerboard],
     size: 9,
   },
   {
     id: 'rows-alt',
-    name: 'Rows Alt',
+    name: 'rows-alt',
     category: 'static',
     frames: [rowsAlt],
     size: 9,
   },
   {
     id: 'stripes-h',
-    name: 'Stripes H',
+    name: 'stripes-h',
     category: 'static',
     frames: [stripesH],
     size: 9,
   },
   {
     id: 'stripes-v',
-    name: 'Stripes V',
+    name: 'stripes-v',
     category: 'static',
     frames: [stripesV],
     size: 9,
   },
 
-  // Wave animations
+  // Animated patterns...
   {
     id: 'wave-lr',
-    name: 'Wave LR',
+    name: 'wave-lr',
     category: 'wave',
     frames: generateWaveLR(),
     size: 9,
   },
   {
     id: 'wave-rl',
-    name: 'Wave RL',
+    name: 'wave-rl',
     category: 'wave',
     frames: generateWaveRL(),
     size: 9,
   },
   {
     id: 'wave-tb',
-    name: 'Wave TB',
+    name: 'wave-tb',
     category: 'wave',
     frames: generateWaveTB(),
     size: 9,
   },
   {
     id: 'wave-bt',
-    name: 'Wave BT',
+    name: 'wave-bt',
     category: 'wave',
     frames: generateWaveBT(),
     size: 9,
   },
-
-  // Diagonal animations
   {
     id: 'diagonal-tl',
-    name: 'Diagonal TL',
+    name: 'diagonal-tl',
     category: 'diagonal',
     frames: generateDiagonalTL(),
     size: 9,
   },
   {
     id: 'diagonal-tr',
-    name: 'Diagonal TR',
+    name: 'diagonal-tr',
     category: 'diagonal',
     frames: generateDiagonalTR(),
     size: 9,
   },
   {
     id: 'diagonal-bl',
-    name: 'Diagonal BL',
+    name: 'diagonal-bl',
     category: 'diagonal',
     frames: generateDiagonalBL(),
     size: 9,
   },
   {
     id: 'diagonal-br',
-    name: 'Diagonal BR',
+    name: 'diagonal-br',
     category: 'diagonal',
     frames: generateDiagonalBR(),
     size: 9,
   },
-
-  // Ripple animations
   {
     id: 'ripple-out',
-    name: 'Ripple Out',
+    name: 'ripple-out',
     category: 'ripple',
     frames: generateRippleOut(),
     size: 9,
   },
   {
     id: 'ripple-in',
-    name: 'Ripple In',
+    name: 'ripple-in',
     category: 'ripple',
     frames: generateRippleIn(),
     size: 9,
   },
-
-  // Spiral animations
   {
     id: 'spiral-cw',
-    name: 'Spiral CW',
+    name: 'spiral-cw',
     category: 'spiral',
     frames: generateSpiralCW(),
     size: 9,
   },
   {
     id: 'spiral-ccw',
-    name: 'Spiral CCW',
+    name: 'spiral-ccw',
     category: 'spiral',
     frames: generateSpiralCCW(),
     size: 9,
   },
-
-  // Other animations
   {
     id: 'snake',
-    name: 'Snake',
+    name: 'snake',
     category: 'other',
     frames: generateSnake(),
     size: 9,
   },
   {
-    id: 'snake-rev',
-    name: 'Snake Rev',
-    category: 'other',
-    frames: generateSnakeRev(),
-    size: 9,
-  },
-  {
     id: 'rain',
-    name: 'Rain',
+    name: 'rain',
     category: 'other',
     frames: generateRain(),
-    size: 9,
-  },
-  {
-    id: 'rain-rev',
-    name: 'Rain Rev',
-    category: 'other',
-    frames: generateRainRev(),
-    size: 9,
-  },
-
-  // Pulsing static patterns
-  {
-    id: 'cross-pulse',
-    name: 'Cross Pulse',
-    category: 'static',
-    frames: generatePulse(cross),
-    size: 9,
-  },
-  {
-    id: 'x-pulse',
-    name: 'X Pulse',
-    category: 'static',
-    frames: generatePulse(xShape),
-    size: 9,
-  },
-  {
-    id: 'diamond-pulse',
-    name: 'Diamond Pulse',
-    category: 'static',
-    frames: generatePulse(diamond),
     size: 9,
   },
 ]
 
 export const presetCategories = [
   { id: 'all', name: 'All' },
+  { id: 'points', name: 'Points' },
+  { id: 'lines', name: 'Lines' },
+  { id: 'shapes', name: 'Shapes' },
+  { id: 'frames', name: 'Frames' },
   { id: 'static', name: 'Static' },
   { id: 'wave', name: 'Wave' },
   { id: 'diagonal', name: 'Diagonal' },

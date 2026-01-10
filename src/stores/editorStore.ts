@@ -27,7 +27,12 @@ export interface EditorState {
   brushBrightness: number
   fps: number
   isPlaying: boolean
+  isPaused: boolean
+  loop: boolean
   glow: boolean
+  bloomIntensity: number // 0-100
+  transitionSpeed: 'slow' | 'normal' | 'fast'
+  fadeIntensity: number // 0-100
   gridVisibility: 'hidden' | 'normal' | 'prominent'
   history: Frame[][]
   historyIndex: number
@@ -42,7 +47,12 @@ const DEFAULT_STATE: EditorState = {
   brushBrightness: 1,
   fps: 12,
   isPlaying: false,
+  isPaused: false,
+  loop: true,
   glow: true,
+  bloomIntensity: 75,
+  transitionSpeed: 'normal',
+  fadeIntensity: 80,
   gridVisibility: 'normal',
   history: [],
   historyIndex: -1,
@@ -234,9 +244,48 @@ export function useEditorStore(initialState: Partial<EditorState> = {}) {
     setState((prev) => ({ ...prev, isPlaying: !prev.isPlaying }))
   }, [])
 
+  // Toggle paused
+  const togglePaused = useCallback(() => {
+    setState((prev) => ({ ...prev, isPaused: !prev.isPaused }))
+  }, [])
+
+  // Set paused
+  const setPaused = useCallback((paused: boolean) => {
+    setState((prev) => ({ ...prev, isPaused: paused }))
+  }, [])
+
+  // Toggle loop
+  const toggleLoop = useCallback(() => {
+    setState((prev) => ({ ...prev, loop: !prev.loop }))
+  }, [])
+
   // Toggle glow
   const toggleGlow = useCallback(() => {
     setState((prev) => ({ ...prev, glow: !prev.glow }))
+  }, [])
+
+  // Set bloom intensity (0-100)
+  const setBloomIntensity = useCallback((intensity: number) => {
+    setState((prev) => ({
+      ...prev,
+      bloomIntensity: Math.max(0, Math.min(100, intensity)),
+    }))
+  }, [])
+
+  // Set transition speed
+  const setTransitionSpeed = useCallback(
+    (speed: 'slow' | 'normal' | 'fast') => {
+      setState((prev) => ({ ...prev, transitionSpeed: speed }))
+    },
+    [],
+  )
+
+  // Set fade intensity (0-100)
+  const setFadeIntensity = useCallback((intensity: number) => {
+    setState((prev) => ({
+      ...prev,
+      fadeIntensity: Math.max(0, Math.min(100, intensity)),
+    }))
   }, [])
 
   // Set grid visibility
@@ -300,7 +349,13 @@ export function useEditorStore(initialState: Partial<EditorState> = {}) {
     setBrushBrightness,
     setFps,
     togglePlaying,
+    togglePaused,
+    setPaused,
+    toggleLoop,
     toggleGlow,
+    setBloomIntensity,
+    setTransitionSpeed,
+    setFadeIntensity,
     setGridVisibility,
     loadPattern,
     loadFrames,

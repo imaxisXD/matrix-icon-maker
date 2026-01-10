@@ -72,11 +72,15 @@ export function IconPreview({ store }: IconPreviewProps) {
                 cols={state.gridSize.cols}
                 frames={frames}
                 fps={state.fps}
-                loop
+                loop={state.loop}
+                paused={state.isPaused}
                 size={12}
                 gap={2}
                 palette={previewPalette}
                 glow={state.glow}
+                bloomIntensity={state.bloomIntensity}
+                fadeIntensity={state.fadeIntensity}
+                transitionSpeed={state.transitionSpeed}
               />
             ) : (
               <Matrix
@@ -87,6 +91,9 @@ export function IconPreview({ store }: IconPreviewProps) {
                 gap={2}
                 palette={previewPalette}
                 glow={state.glow}
+                bloomIntensity={state.bloomIntensity}
+                fadeIntensity={state.fadeIntensity}
+                transitionSpeed={state.transitionSpeed}
               />
             )}
           </div>
