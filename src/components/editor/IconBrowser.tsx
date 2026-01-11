@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo, memo } from 'react'
 import {
   Heart,
   Star,
@@ -166,12 +166,12 @@ import {
   Eraser,
   type LucideIcon,
 } from 'lucide-react'
-import type { EditorStore } from '../../stores/editorStore'
+import { useLoadActions } from '../../stores/editorStore'
 import { svgToMatrix } from '../../utils/svgToMatrix'
 import { Matrix } from '../ui/Matrix'
 
 interface IconBrowserProps {
-  store: EditorStore
+  // No props needed - uses hooks directly
 }
 
 // Icon registry with categories
@@ -407,7 +407,8 @@ const GRID_SIZES = [
   { value: 16, label: '16×16' },
 ]
 
-export function IconBrowser({ store }: IconBrowserProps) {
+export const IconBrowser = memo(function IconBrowser(_props: IconBrowserProps) {
+  const { loadPattern, palette } = useLoadActions()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [selectedIcon, setSelectedIcon] = useState<
@@ -496,8 +497,8 @@ export function IconBrowser({ store }: IconBrowserProps) {
   // Apply to canvas
   const handleApply = useCallback(() => {
     if (!previewFrame) return
-    store.loadPattern(previewFrame)
-  }, [previewFrame, store])
+    loadPattern(previewFrame)
+  }, [previewFrame, loadPattern])
 
   return (
     <div className="flex h-full gap-4">
@@ -624,10 +625,7 @@ export function IconBrowser({ store }: IconBrowserProps) {
                     pattern={previewFrame}
                     size={Math.floor(120 / gridSize)}
                     gap={1}
-                    palette={{
-                      on: store.state.palette.on,
-                      off: store.state.palette.off,
-                    }}
+                    palette={palette}
                     glow={false}
                   />
                 ) : (
@@ -655,4 +653,4 @@ export function IconBrowser({ store }: IconBrowserProps) {
       </div>
     </div>
   )
-}
+})

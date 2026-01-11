@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useState, memo } from 'react'
 import { Copy, Check, Download, Code, FileCode, Braces } from 'lucide-react'
-import type { EditorStore } from '../../stores/editorStore'
+import { useExportState } from '../../stores/editorStore'
 
 interface ExportPanelProps {
-  store: EditorStore
+  // No props needed - uses hooks directly
 }
 
 // Screw head component
@@ -37,8 +37,16 @@ function formatFrames(frames: number[][][]): string {
     .join(',\n')}\n]`
 }
 
-export function ExportPanel({ store }: ExportPanelProps) {
-  const { state } = store
+export const ExportPanel = memo(function ExportPanel(_props: ExportPanelProps) {
+  const {
+    frames,
+    currentFrameIndex,
+    gridSize,
+    palette,
+    fps,
+    glow,
+  } = useExportState()
+
   const [copied, setCopied] = useState<string | null>(null)
 
   const copyToClipboard = async (text: string, label: string) => {
@@ -49,18 +57,18 @@ export function ExportPanel({ store }: ExportPanelProps) {
 
   // Generate TypeScript pattern code
   const generatePatternCode = () => {
-    const frame = state.frames[state.currentFrameIndex]
+    const frame = frames[currentFrameIndex]
     return `const pattern: Frame = ${formatFrame(frame)};`
   }
 
   // Generate TypeScript frames code
   const generateFramesCode = () => {
-    return `const frames: Frame[] = ${formatFrames(state.frames)};`
+    return `const frames: Frame[] = ${formatFrames(frames)};`
   }
 
   // Generate React component code
   const generateComponentCode = () => {
-    const frame = state.frames[state.currentFrameIndex]
+    const frame = frames[currentFrameIndex]
 
     return `import { Matrix, Frame } from "@/components/ui/Matrix";
 
@@ -77,16 +85,16 @@ export function CustomIcon({
 }) {
   return (
     <Matrix
-      rows={${state.gridSize.rows}}
-      cols={${state.gridSize.cols}}
+      rows={${gridSize.rows}}
+      cols={${gridSize.cols}}
       pattern={pattern}
       size={size}
       gap={gap}
       palette={{
-        on: "${state.palette.on}",
-        off: "${state.palette.off}",
+        on: "${palette.on}",
+        off: "${palette.off}",
       }}
-      glow={${state.glow}}
+      glow={${glow}}
     />
   );
 }`
@@ -94,8 +102,8 @@ export function CustomIcon({
 
   // Generate SVG
   const generateSVG = () => {
-    const frame = state.frames[state.currentFrameIndex]
-    const { rows, cols } = state.gridSize
+    const frame = frames[currentFrameIndex]
+    const { rows, cols } = gridSize
     const size = 10
     const gap = 2
     const width = cols * (size + gap) - gap
@@ -107,7 +115,7 @@ export function CustomIcon({
         const value = frame[r]?.[c] ?? 0
         const x = c * (size + gap) + size / 2
         const y = r * (size + gap) + size / 2
-        const color = value > 0.05 ? state.palette.on : state.palette.off
+        const color = value > 0.05 ? palette.on : palette.off
         const opacity = value > 0.05 ? value : 0.1
         circles += `  <circle cx="${x}" cy="${y}" r="${(size / 2) * 0.9}" fill="${color}" opacity="${opacity}" />\n`
       }
@@ -168,11 +176,11 @@ ${circles}</svg>`
           <button
             onClick={() => copyToClipboard(generateFramesCode(), 'frames')}
             className={`relative flex items-center justify-center gap-2 rounded border border-[#e0ddd5] bg-white py-2.5 text-[10px] font-bold uppercase tracking-wider transition-all ${
-              state.frames.length > 1
+              frames.length > 1
                 ? 'text-[#8a8a8a] hover:border-[#0066cc]/50 hover:text-[#0066cc] hover:shadow-sm'
                 : 'cursor-not-allowed opacity-40'
             }`}
-            disabled={state.frames.length <= 1}
+            disabled={frames.length <= 1}
           >
             {copied === 'frames' ? (
               <>
@@ -228,4 +236,4 @@ ${circles}</svg>`
       </div>
     </div>
   )
-}
+})

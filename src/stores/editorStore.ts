@@ -1,9 +1,18 @@
-import { useState, useCallback, useMemo } from 'react'
+import { create } from 'zustand'
+import { devtools, persist } from 'zustand/middleware'
+import { useShallow } from 'zustand/react/shallow'
 import type { Frame } from '../components/ui/Matrix'
 import { generateTweenFrames, deepCloneFrame } from '../utils/animation'
 
-export type TweenEasing = 'linear' | 'easeIn' | 'easeOut' | 'easeInOut' | 'smoothstep'
+export type TweenEasing =
+  | 'linear'
+  | 'easeIn'
+  | 'easeOut'
+  | 'easeInOut'
+  | 'smoothstep'
 export type OnionSkinMode = 'previous' | 'next' | 'both'
+export type Tool = 'brush' | 'eraser' | 'fill' | 'line'
+export type PixelUpdate = { row: number; col: number; value: number }
 
 // Create empty frame
 function emptyFrame(rows: number, cols: number): Frame {
@@ -20,615 +29,682 @@ function cloneFrames(frames: Frame[]): Frame[] {
   return frames.map(cloneFrame)
 }
 
-// Type for batch pixel updates
-export type PixelUpdate = { row: number; col: number; value: number }
+// ============ STATE SLICES ============
 
-export type Tool = 'brush' | 'eraser' | 'fill' | 'line'
-
-export interface EditorState {
+// Animation State (changes frequently during playback)
+interface AnimationState {
   frames: Frame[]
   currentFrameIndex: number
-  gridSize: { rows: number; cols: number }
-  palette: { on: string; off: string }
-  tool: Tool
-  brushBrightness: number
   fps: number
   isPlaying: boolean
   isPaused: boolean
   loop: boolean
+}
+
+// Editing State (changes while drawing)
+interface EditingState {
+  gridSize: { rows: number; cols: number }
+  palette: { on: string; off: string }
+  tool: Tool
+  brushBrightness: number
   glow: boolean
-  bloomIntensity: number // 0-100
+  bloomIntensity: number
+  fadeIntensity: number
   transitionSpeed: 'slow' | 'normal' | 'fast'
-  fadeIntensity: number // 0-100
   gridVisibility: 'hidden' | 'normal' | 'prominent'
-  history: Frame[][]
-  historyIndex: number
-  // Onion skin state
+}
+
+// Onion Skin State
+interface OnionSkinState {
   onionSkinEnabled: boolean
-  onionSkinPreviousOpacity: number // 0-100
-  onionSkinNextOpacity: number // 0-100
+  onionSkinPreviousOpacity: number
+  onionSkinNextOpacity: number
   onionSkinMode: OnionSkinMode
-  // Frame selection for tweening
+}
+
+// Selection State (for tweening)
+interface SelectionState {
   selectedFrameIndices: number[]
-  // Tween easing
   tweenEasing: TweenEasing
 }
 
-const DEFAULT_STATE: EditorState = {
+// History State
+interface HistoryState {
+  history: Frame[][]
+  historyIndex: number
+}
+
+// ============ DEFAULT STATE ============
+
+const DEFAULT_ANIMATION: AnimationState = {
   frames: [emptyFrame(9, 9)],
   currentFrameIndex: 0,
-  gridSize: { rows: 9, cols: 9 },
-  palette: { on: 'hsl(200, 100%, 50%)', off: 'hsl(200, 20%, 20%)' },
-  tool: 'brush',
-  brushBrightness: 1,
   fps: 12,
   isPlaying: false,
   isPaused: false,
   loop: true,
+}
+
+const DEFAULT_EDITING: EditingState = {
+  gridSize: { rows: 9, cols: 9 },
+  palette: { on: 'hsl(200, 100%, 50%)', off: 'hsl(200, 20%, 20%)' },
+  tool: 'brush',
+  brushBrightness: 1,
   glow: true,
   bloomIntensity: 30,
-  transitionSpeed: 'normal',
   fadeIntensity: 50,
+  transitionSpeed: 'normal',
   gridVisibility: 'normal',
-  history: [],
-  historyIndex: -1,
-  // Onion skin defaults
+}
+
+const DEFAULT_ONION_SKIN: OnionSkinState = {
   onionSkinEnabled: false,
   onionSkinPreviousOpacity: 30,
   onionSkinNextOpacity: 15,
   onionSkinMode: 'both',
-  // Frame selection defaults
+}
+
+const DEFAULT_SELECTION: SelectionState = {
   selectedFrameIndices: [],
-  // Tween easing default
   tweenEasing: 'smoothstep',
 }
 
-export function useEditorStore(initialState: Partial<EditorState> = {}) {
-  const [state, setState] = useState<EditorState>({
-    ...DEFAULT_STATE,
-    ...initialState,
-  })
-
-  // Save to history
-  const saveHistory = useCallback(() => {
-    setState((prev) => {
-      const newHistory = prev.history.slice(0, prev.historyIndex + 1)
-      newHistory.push(cloneFrames(prev.frames))
-      return {
-        ...prev,
-        history: newHistory.slice(-50), // Keep last 50 states
-        historyIndex: Math.min(newHistory.length - 1, 49),
-      }
-    })
-  }, [])
-
-  // Undo
-  const undo = useCallback(() => {
-    setState((prev) => {
-      if (prev.historyIndex < 0) return prev
-      const frames = cloneFrames(prev.history[prev.historyIndex])
-      return {
-        ...prev,
-        frames,
-        historyIndex: prev.historyIndex - 1,
-      }
-    })
-  }, [])
-
-  // Redo
-  const redo = useCallback(() => {
-    setState((prev) => {
-      if (prev.historyIndex >= prev.history.length - 1) return prev
-      const frames = cloneFrames(prev.history[prev.historyIndex + 1])
-      return {
-        ...prev,
-        frames,
-        historyIndex: prev.historyIndex + 1,
-      }
-    })
-  }, [])
-
-  // Set pixel value
-  const setPixel = useCallback((row: number, col: number, value: number) => {
-    setState((prev) => {
-      const frame = cloneFrame(prev.frames[prev.currentFrameIndex])
-      if (row >= 0 && row < frame.length && col >= 0 && col < frame[0].length) {
-        frame[row][col] = value
-      }
-      const frames = [...prev.frames]
-      frames[prev.currentFrameIndex] = frame
-      return { ...prev, frames }
-    })
-  }, [])
-
-  // Set multiple pixels in a single batch operation (for flood fill, etc.)
-  const setPixelsBatch = useCallback((updates: PixelUpdate[]) => {
-    setState((prev) => {
-      const frame = cloneFrame(prev.frames[prev.currentFrameIndex])
-      for (const { row, col, value } of updates) {
-        if (row >= 0 && row < frame.length && col >= 0 && col < frame[0].length) {
-          frame[row][col] = value
-        }
-      }
-      const frames = [...prev.frames]
-      frames[prev.currentFrameIndex] = frame
-      return { ...prev, frames }
-    })
-  }, [])
-
-  // Clear current frame
-  const clearFrame = useCallback(() => {
-    saveHistory()
-    setState((prev) => {
-      const frames = [...prev.frames]
-      frames[prev.currentFrameIndex] = emptyFrame(
-        prev.gridSize.rows,
-        prev.gridSize.cols,
-      )
-      return { ...prev, frames }
-    })
-  }, [saveHistory])
-
-  // Fill entire frame
-  const fillFrame = useCallback(
-    (value: number) => {
-      saveHistory()
-      setState((prev) => {
-        const frames = [...prev.frames]
-        frames[prev.currentFrameIndex] = Array.from(
-          { length: prev.gridSize.rows },
-          () => Array(prev.gridSize.cols).fill(value),
-        )
-        return { ...prev, frames }
-      })
-    },
-    [saveHistory],
-  )
-
-  // Add new frame
-  const addFrame = useCallback(() => {
-    setState((prev) => {
-      const newFrame = emptyFrame(prev.gridSize.rows, prev.gridSize.cols)
-      const frames = [
-        ...prev.frames.slice(0, prev.currentFrameIndex + 1),
-        newFrame,
-        ...prev.frames.slice(prev.currentFrameIndex + 1),
-      ]
-      return {
-        ...prev,
-        frames,
-        currentFrameIndex: prev.currentFrameIndex + 1,
-      }
-    })
-  }, [])
-
-  // Duplicate current frame
-  const duplicateFrame = useCallback(() => {
-    setState((prev) => {
-      const duplicate = cloneFrame(prev.frames[prev.currentFrameIndex])
-      const frames = [
-        ...prev.frames.slice(0, prev.currentFrameIndex + 1),
-        duplicate,
-        ...prev.frames.slice(prev.currentFrameIndex + 1),
-      ]
-      return {
-        ...prev,
-        frames,
-        currentFrameIndex: prev.currentFrameIndex + 1,
-      }
-    })
-  }, [])
-
-  // Delete current frame
-  const deleteFrame = useCallback(() => {
-    setState((prev) => {
-      if (prev.frames.length <= 1) {
-        // Don't delete last frame, just clear it
-        const frames = [emptyFrame(prev.gridSize.rows, prev.gridSize.cols)]
-        return { ...prev, frames, currentFrameIndex: 0 }
-      }
-      const frames = prev.frames.filter((_, i) => i !== prev.currentFrameIndex)
-      const newIndex = Math.min(prev.currentFrameIndex, frames.length - 1)
-      return { ...prev, frames, currentFrameIndex: newIndex }
-    })
-  }, [])
-
-  // Set current frame index
-  const setCurrentFrame = useCallback((index: number) => {
-    setState((prev) => ({
-      ...prev,
-      currentFrameIndex: Math.max(0, Math.min(index, prev.frames.length - 1)),
-    }))
-  }, [])
-
-  // Set grid size
-  const setGridSize = useCallback((rows: number, cols: number) => {
-    setState((prev) => {
-      // Resize all frames
-      const frames = prev.frames.map((frame) => {
-        const newFrame: Frame = []
-        for (let r = 0; r < rows; r++) {
-          newFrame.push([])
-          for (let c = 0; c < cols; c++) {
-            newFrame[r][c] = frame[r]?.[c] ?? 0
-          }
-        }
-        return newFrame
-      })
-      return { ...prev, frames, gridSize: { rows, cols } }
-    })
-  }, [])
-
-  // Set palette
-  const setPalette = useCallback((on: string, off: string) => {
-    setState((prev) => ({ ...prev, palette: { on, off } }))
-  }, [])
-
-  // Set tool
-  const setTool = useCallback((tool: Tool) => {
-    setState((prev) => ({ ...prev, tool }))
-  }, [])
-
-  // Set brush brightness
-  const setBrushBrightness = useCallback((brightness: number) => {
-    setState((prev) => ({ ...prev, brushBrightness: brightness }))
-  }, [])
-
-  // Set FPS
-  const setFps = useCallback((fps: number) => {
-    setState((prev) => ({ ...prev, fps }))
-  }, [])
-
-  // Toggle playing
-  const togglePlaying = useCallback(() => {
-    setState((prev) => ({ ...prev, isPlaying: !prev.isPlaying }))
-  }, [])
-
-  // Toggle paused
-  const togglePaused = useCallback(() => {
-    setState((prev) => ({ ...prev, isPaused: !prev.isPaused }))
-  }, [])
-
-  // Set paused
-  const setPaused = useCallback((paused: boolean) => {
-    setState((prev) => ({ ...prev, isPaused: paused }))
-  }, [])
-
-  // Toggle loop
-  const toggleLoop = useCallback(() => {
-    setState((prev) => ({ ...prev, loop: !prev.loop }))
-  }, [])
-
-  // Toggle glow
-  const toggleGlow = useCallback(() => {
-    setState((prev) => ({ ...prev, glow: !prev.glow }))
-  }, [])
-
-  // Set bloom intensity (0-100)
-  const setBloomIntensity = useCallback((intensity: number) => {
-    setState((prev) => ({
-      ...prev,
-      bloomIntensity: Math.max(0, Math.min(100, intensity)),
-    }))
-  }, [])
-
-  // Set transition speed
-  const setTransitionSpeed = useCallback(
-    (speed: 'slow' | 'normal' | 'fast') => {
-      setState((prev) => ({ ...prev, transitionSpeed: speed }))
-    },
-    [],
-  )
-
-  // Set fade intensity (0-100)
-  const setFadeIntensity = useCallback((intensity: number) => {
-    setState((prev) => ({
-      ...prev,
-      fadeIntensity: Math.max(0, Math.min(100, intensity)),
-    }))
-  }, [])
-
-  // Set grid visibility
-  const setGridVisibility = useCallback(
-    (visibility: 'hidden' | 'normal' | 'prominent') => {
-      setState((prev) => ({ ...prev, gridVisibility: visibility }))
-    },
-    [],
-  )
-
-  // Load pattern (single frame)
-  const loadPattern = useCallback(
-    (pattern: Frame) => {
-      saveHistory()
-      const rows = pattern.length
-      const cols = pattern[0]?.length ?? 9
-      setState((prev) => ({
-        ...prev,
-        frames: [cloneFrame(pattern)],
-        currentFrameIndex: 0,
-        gridSize: { rows, cols },
-      }))
-    },
-    [saveHistory],
-  )
-
-  // Load frames (animation)
-  const loadFrames = useCallback(
-    (frames: Frame[]) => {
-      saveHistory()
-      if (frames.length === 0) return
-      const rows = frames[0].length
-      const cols = frames[0][0]?.length ?? 9
-      setState((prev) => ({
-        ...prev,
-        frames: cloneFrames(frames),
-        currentFrameIndex: 0,
-        gridSize: { rows, cols },
-      }))
-    },
-    [saveHistory],
-  )
-
-  // ===== Onion Skin Actions =====
-
-  const setOnionSkinEnabled = useCallback((enabled: boolean) => {
-    setState((prev) => ({ ...prev, onionSkinEnabled: enabled }))
-  }, [])
-
-  const setOnionSkinOpacity = useCallback((previous: number, next: number) => {
-    setState((prev) => ({
-      ...prev,
-      onionSkinPreviousOpacity: Math.max(0, Math.min(100, previous)),
-      onionSkinNextOpacity: Math.max(0, Math.min(100, next)),
-    }))
-  }, [])
-
-  const setOnionSkinMode = useCallback((mode: OnionSkinMode) => {
-    setState((prev) => ({ ...prev, onionSkinMode: mode }))
-  }, [])
-
-  const toggleOnionSkin = useCallback(() => {
-    setState((prev) => ({ ...prev, onionSkinEnabled: !prev.onionSkinEnabled }))
-  }, [])
-
-  // ===== Frame Selection Actions =====
-
-  const setSelectedFrameIndex = useCallback((index: number) => {
-    setState((prev) => ({ ...prev, selectedFrameIndices: [index] }))
-  }, [])
-
-  const toggleFrameSelection = useCallback((index: number) => {
-    setState((prev) => {
-      const isSelected = prev.selectedFrameIndices.includes(index)
-      if (isSelected) {
-        return {
-          ...prev,
-          selectedFrameIndices: prev.selectedFrameIndices.filter((i) => i !== index),
-        }
-      }
-      return {
-        ...prev,
-        selectedFrameIndices: [...prev.selectedFrameIndices, index],
-      }
-    })
-  }, [])
-
-  const selectFrameRange = useCallback((fromIndex: number, toIndex: number) => {
-    const start = Math.min(fromIndex, toIndex)
-    const end = Math.max(fromIndex, toIndex)
-    const range = Array.from({ length: end - start + 1 }, (_, i) => start + i)
-    setState((prev) => ({ ...prev, selectedFrameIndices: range }))
-  }, [])
-
-  const clearFrameSelection = useCallback(() => {
-    setState((prev) => ({ ...prev, selectedFrameIndices: [] }))
-  }, [])
-
-  // ===== Tween Actions =====
-
-  const setTweenEasing = useCallback((easing: TweenEasing) => {
-    setState((prev) => ({ ...prev, tweenEasing: easing }))
-  }, [])
-
-  const generateTween = useCallback(
-    (fromIndex: number, toIndex: number, count: number) => {
-      saveHistory()
-      setState((prev) => {
-        if (fromIndex >= toIndex || count <= 0) return prev
-
-        const fromFrame = prev.frames[fromIndex]
-        const toFrame = prev.frames[toIndex]
-
-        if (!fromFrame || !toFrame) return prev
-
-        const { tweenedFrames, insertIndex } = generateTweenFrames(
-          prev.frames,
-          fromIndex,
-          toIndex,
-          Math.min(count, 20), // Cap at 20 frames for performance
-          prev.tweenEasing
-        )
-
-        // Insert tween frames (note: toIndex will shift after insertion)
-        const newFrames = [...prev.frames]
-        // Remove frames between from and to (exclusive)
-        const framesToRemove = toIndex - fromIndex - 1
-        newFrames.splice(fromIndex + 1, framesToRemove, ...tweenedFrames)
-
-        return {
-          ...prev,
-          frames: newFrames,
-          selectedFrameIndices: [], // Clear selection after tweening
-        }
-      })
-    },
-    [saveHistory]
-  )
-
-  // ===== Drag & Drop Actions =====
-
-  const reorderFrames = useCallback(
-    (fromIndex: number, toIndex: number) => {
-      saveHistory()
-      setState((prev) => {
-        if (fromIndex === toIndex) return prev
-
-        const frames = [...prev.frames]
-        const [movedFrame] = frames.splice(fromIndex, 1)
-        frames.splice(toIndex, 0, movedFrame)
-
-        // Update current frame index
-        let newCurrentIndex = prev.currentFrameIndex
-        if (prev.currentFrameIndex === fromIndex) {
-          newCurrentIndex = toIndex
-        } else if (fromIndex < prev.currentFrameIndex && toIndex >= prev.currentFrameIndex) {
-          newCurrentIndex = prev.currentFrameIndex - 1
-        } else if (fromIndex > prev.currentFrameIndex && toIndex <= prev.currentFrameIndex) {
-          newCurrentIndex = prev.currentFrameIndex + 1
-        }
-
-        return {
-          ...prev,
-          frames,
-          currentFrameIndex: newCurrentIndex,
-          selectedFrameIndices: [],
-        }
-      })
-    },
-    [saveHistory]
-  )
-
-  // Get onion skin layers for current frame
-  const onionSkinLayers = useMemo(() => {
-    if (!state.onionSkinEnabled) return []
-
-    const layers: Array<{ frame: Frame; opacity: number; type: 'previous' | 'next' }> = []
-    const { currentFrameIndex, frames, onionSkinMode, onionSkinPreviousOpacity, onionSkinNextOpacity } =
-      state
-
-    // Previous frame
-    if (onionSkinMode === 'previous' || onionSkinMode === 'both') {
-      if (currentFrameIndex > 0) {
-        layers.push({
-          frame: frames[currentFrameIndex - 1],
-          opacity: onionSkinPreviousOpacity / 100,
-          type: 'previous',
-        })
-      }
-    }
-
-    // Next frame
-    if (onionSkinMode === 'next' || onionSkinMode === 'both') {
-      if (currentFrameIndex < frames.length - 1) {
-        layers.push({
-          frame: frames[currentFrameIndex + 1],
-          opacity: onionSkinNextOpacity / 100,
-          type: 'next',
-        })
-      }
-    }
-
-    return layers
-  }, [state.onionSkinEnabled, state.currentFrameIndex, state.frames, state.onionSkinMode, state.onionSkinPreviousOpacity, state.onionSkinNextOpacity])
-
-  // Get current frame
-  const currentFrame = state.frames[state.currentFrameIndex]
-
-  // Memoize the return object to prevent unnecessary re-renders in consuming components
-  // This ensures components only re-render when values they actually use change
-  return useMemo(
-    () => ({
-      state,
-      currentFrame,
-      onionSkinLayers,
-      // Actions
-      setPixel,
-      setPixelsBatch,
-      clearFrame,
-      fillFrame,
-      addFrame,
-      duplicateFrame,
-      deleteFrame,
-      setCurrentFrame,
-      setGridSize,
-      setPalette,
-      setTool,
-      setBrushBrightness,
-      setFps,
-      togglePlaying,
-      togglePaused,
-      setPaused,
-      toggleLoop,
-      toggleGlow,
-      setBloomIntensity,
-      setTransitionSpeed,
-      setFadeIntensity,
-      setGridVisibility,
-      loadPattern,
-      loadFrames,
-      saveHistory,
-      undo,
-      redo,
-      // Onion skin actions
-      setOnionSkinEnabled,
-      setOnionSkinOpacity,
-      setOnionSkinMode,
-      toggleOnionSkin,
-      // Frame selection actions
-      setSelectedFrameIndex,
-      toggleFrameSelection,
-      selectFrameRange,
-      clearFrameSelection,
-      // Tween actions
-      setTweenEasing,
-      generateTween,
-      // Drag & drop actions
-      reorderFrames,
-    }),
-    [
-      state,
-      currentFrame,
-      onionSkinLayers,
-      setPixel,
-      setPixelsBatch,
-      clearFrame,
-      fillFrame,
-      addFrame,
-      duplicateFrame,
-      deleteFrame,
-      setCurrentFrame,
-      setGridSize,
-      setPalette,
-      setTool,
-      setBrushBrightness,
-      setFps,
-      togglePlaying,
-      togglePaused,
-      setPaused,
-      toggleLoop,
-      toggleGlow,
-      setBloomIntensity,
-      setTransitionSpeed,
-      setFadeIntensity,
-      setGridVisibility,
-      loadPattern,
-      loadFrames,
-      saveHistory,
-      undo,
-      redo,
-      setOnionSkinEnabled,
-      setOnionSkinOpacity,
-      setOnionSkinMode,
-      toggleOnionSkin,
-      setSelectedFrameIndex,
-      toggleFrameSelection,
-      selectFrameRange,
-      clearFrameSelection,
-      setTweenEasing,
-      generateTween,
-      reorderFrames,
-    ],
-  )
+const DEFAULT_HISTORY: HistoryState = {
+  history: [],
+  historyIndex: -1,
 }
 
-export type EditorStore = ReturnType<typeof useEditorStore>
+// ============ ACTIONS ============
+
+interface AnimationActions {
+  setFrames: (frames: Frame[]) => void
+  setCurrentFrameIndex: (index: number) => void
+  setFps: (fps: number) => void
+  togglePlaying: () => void
+  setPaused: (paused: boolean) => void
+  toggleLoop: () => void
+  addFrame: () => void
+  duplicateFrame: () => void
+  deleteFrame: () => void
+  loadFrames: (frames: Frame[]) => void
+}
+
+interface EditingActions {
+  setGridSize: (size: { rows: number; cols: number }) => void
+  setPalette: (palette: { on: string; off: string }) => void
+  setTool: (tool: Tool) => void
+  setBrushBrightness: (brightness: number) => void
+  toggleGlow: () => void
+  setBloomIntensity: (intensity: number) => void
+  setTransitionSpeed: (speed: 'slow' | 'normal' | 'fast') => void
+  setFadeIntensity: (intensity: number) => void
+  setGridVisibility: (visibility: 'hidden' | 'normal' | 'prominent') => void
+  setPixel: (row: number, col: number, value: number) => void
+  setPixelsBatch: (updates: PixelUpdate[]) => void
+  clearFrame: () => void
+  fillFrame: () => void
+  loadPattern: (pattern: Frame) => void
+}
+
+interface OnionSkinActions {
+  setOnionSkinEnabled: (enabled: boolean) => void
+  setOnionSkinOpacity: (previous: number, next: number) => void
+  setOnionSkinMode: (mode: OnionSkinMode) => void
+  toggleOnionSkin: () => void
+}
+
+interface SelectionActions {
+  setSelectedFrameIndex: (index: number) => void
+  toggleFrameSelection: (index: number) => void
+  selectFrameRange: (fromIndex: number, toIndex: number) => void
+  clearFrameSelection: () => void
+  setTweenEasing: (easing: TweenEasing) => void
+  generateTween: (fromIndex: number, toIndex: number, count: number) => void
+  reorderFrames: (fromIndex: number, toIndex: number) => void
+}
+
+interface HistoryActions {
+  saveHistory: () => void
+  undo: () => void
+  redo: () => void
+}
+
+// ============ CREATE STORE ============
+
+interface EditorStore
+  extends
+    AnimationState,
+    EditingState,
+    OnionSkinState,
+    SelectionState,
+    HistoryState,
+    AnimationActions,
+    EditingActions,
+    OnionSkinActions,
+    SelectionActions,
+    HistoryActions {
+  // Computed values (not stored, derived from state)
+  currentFrame: Frame
+  onionSkinLayers: Array<{
+    frame: Frame
+    opacity: number
+    type: 'previous' | 'next'
+  }>
+}
+
+const useEditorStoreOriginal = create<EditorStore>()(
+  devtools(
+    persist(
+      (set, get) => ({
+        // ============ INITIAL STATE ============
+        ...DEFAULT_ANIMATION,
+        ...DEFAULT_EDITING,
+        ...DEFAULT_ONION_SKIN,
+        ...DEFAULT_SELECTION,
+        ...DEFAULT_HISTORY,
+
+        // ============ COMPUTED VALUES ============
+        get currentFrame() {
+          const state = get() as EditorStore
+          return state.frames[state.currentFrameIndex] || emptyFrame(9, 9)
+        },
+
+        get onionSkinLayers() {
+          const state = get() as EditorStore
+          const layers: Array<{
+            frame: Frame
+            opacity: number
+            type: 'previous' | 'next'
+          }> = []
+          const {
+            currentFrameIndex,
+            frames,
+            onionSkinEnabled,
+            onionSkinMode,
+            onionSkinPreviousOpacity,
+            onionSkinNextOpacity,
+          } = state
+
+          if (!onionSkinEnabled) return []
+
+          // Previous frame
+          if (onionSkinMode === 'previous' || onionSkinMode === 'both') {
+            if (currentFrameIndex > 0) {
+              layers.push({
+                frame: frames[currentFrameIndex - 1],
+                opacity: onionSkinPreviousOpacity / 100,
+                type: 'previous',
+              })
+            }
+          }
+
+          // Next frame
+          if (onionSkinMode === 'next' || onionSkinMode === 'both') {
+            if (currentFrameIndex < frames.length - 1) {
+              layers.push({
+                frame: frames[currentFrameIndex + 1],
+                opacity: onionSkinNextOpacity / 100,
+                type: 'next',
+              })
+            }
+          }
+
+          return layers
+        },
+
+        // ============ ANIMATION ACTIONS ============
+        setFrames: (frames) => set({ frames }),
+
+        setCurrentFrameIndex: (index) =>
+          set({
+            currentFrameIndex: Math.max(
+              0,
+              Math.min(index, get().frames.length - 1),
+            ),
+          }),
+
+        setFps: (fps) => set({ fps: Math.max(1, Math.min(30, fps)) }),
+
+        togglePlaying: () =>
+          set((state) => {
+            if (state.frames.length <= 1) {
+              return { isPlaying: false }
+            }
+            return { isPlaying: !state.isPlaying, isPaused: false }
+          }),
+
+        setPaused: (paused) => set({ isPaused: paused }),
+
+        toggleLoop: () => set((state) => ({ loop: !state.loop })),
+
+        addFrame: () =>
+          set((state) => {
+            const newFrame = emptyFrame(
+              state.gridSize.rows,
+              state.gridSize.cols,
+            )
+            const newFrames = [...state.frames]
+            newFrames.splice(state.currentFrameIndex + 1, 0, newFrame)
+            return {
+              frames: newFrames,
+              currentFrameIndex: state.currentFrameIndex + 1,
+            }
+          }),
+
+        duplicateFrame: () =>
+          set((state) => {
+            const duplicated = cloneFrame(state.frames[state.currentFrameIndex])
+            const newFrames = [...state.frames]
+            newFrames.splice(state.currentFrameIndex + 1, 0, duplicated)
+            return {
+              frames: newFrames,
+              currentFrameIndex: state.currentFrameIndex + 1,
+            }
+          }),
+
+        deleteFrame: () =>
+          set((state) => {
+            if (state.frames.length <= 1) return state
+            const newFrames = state.frames.filter(
+              (_, i) => i !== state.currentFrameIndex,
+            )
+            return {
+              frames: newFrames,
+              currentFrameIndex: Math.max(0, state.currentFrameIndex - 1),
+            }
+          }),
+
+        loadFrames: (frames) =>
+          set((state) => {
+            if (frames.length === 0) return state
+            const rows = frames[0].length
+            const cols = frames[0][0]?.length ?? 9
+            return {
+              frames: cloneFrames(frames),
+              currentFrameIndex: 0,
+              gridSize: { rows, cols },
+            }
+          }),
+
+        // ============ EDITING ACTIONS ============
+        setGridSize: (size) =>
+          set((state) => {
+            const newFrames = state.frames.map((frame) => {
+              // Resize or pad existing frames
+              const newFrame: Frame = []
+              for (let r = 0; r < size.rows; r++) {
+                const row: number[] = []
+                for (let c = 0; c < size.cols; c++) {
+                  row.push(frame[r]?.[c] ?? 0)
+                }
+                newFrame.push(row)
+              }
+              return newFrame
+            })
+            return { frames: newFrames, gridSize: size }
+          }),
+
+        setPalette: (palette) => set({ palette }),
+
+        setTool: (tool) => set({ tool }),
+
+        setBrushBrightness: (brightness) =>
+          set({ brushBrightness: Math.max(0, Math.min(1, brightness)) }),
+
+        toggleGlow: () => set((state) => ({ glow: !state.glow })),
+
+        setBloomIntensity: (intensity) =>
+          set({ bloomIntensity: Math.max(0, Math.min(100, intensity)) }),
+
+        setTransitionSpeed: (speed) => set({ transitionSpeed: speed }),
+
+        setFadeIntensity: (intensity) =>
+          set({ fadeIntensity: Math.max(0, Math.min(100, intensity)) }),
+
+        setGridVisibility: (visibility) => set({ gridVisibility: visibility }),
+
+        setPixel: (row, col, value) =>
+          set((state) => {
+            const newFrames = cloneFrames(state.frames)
+            newFrames[state.currentFrameIndex][row][col] = value
+            return { frames: newFrames }
+          }),
+
+        setPixelsBatch: (updates) =>
+          set((state) => {
+            const newFrames = cloneFrames(state.frames)
+            const frame = newFrames[state.currentFrameIndex]
+            updates.forEach(({ row, col, value }) => {
+              if (frame[row]?.[col] !== undefined) {
+                frame[row][col] = value
+              }
+            })
+            return { frames: newFrames }
+          }),
+
+        clearFrame: () =>
+          set((state) => {
+            const newFrames = cloneFrames(state.frames)
+            newFrames[state.currentFrameIndex] = emptyFrame(
+              state.gridSize.rows,
+              state.gridSize.cols,
+            )
+            return { frames: newFrames }
+          }),
+
+        fillFrame: () =>
+          set((state) => {
+            const newFrames = cloneFrames(state.frames)
+            newFrames[state.currentFrameIndex] = state.frames[
+              state.currentFrameIndex
+            ].map((row) => row.map(() => state.brushBrightness))
+            return { frames: newFrames }
+          }),
+
+        loadPattern: (pattern) =>
+          set((state) => ({
+            frames: [cloneFrame(pattern)],
+            currentFrameIndex: 0,
+            gridSize: {
+              rows: pattern.length,
+              cols: pattern[0]?.length ?? 9,
+            },
+          })),
+
+        // ============ ONION SKIN ACTIONS ============
+        setOnionSkinEnabled: (enabled) => set({ onionSkinEnabled: enabled }),
+
+        setOnionSkinOpacity: (previous, next) =>
+          set({
+            onionSkinPreviousOpacity: Math.max(0, Math.min(100, previous)),
+            onionSkinNextOpacity: Math.max(0, Math.min(100, next)),
+          }),
+
+        setOnionSkinMode: (mode) => set({ onionSkinMode: mode }),
+
+        toggleOnionSkin: () =>
+          set((state) => ({ onionSkinEnabled: !state.onionSkinEnabled })),
+
+        // ============ SELECTION ACTIONS ============
+        setSelectedFrameIndex: (index) =>
+          set({ selectedFrameIndices: [index] }),
+
+        toggleFrameSelection: (index) =>
+          set((state) => {
+            const isSelected = state.selectedFrameIndices.includes(index)
+            if (isSelected) {
+              return {
+                selectedFrameIndices: state.selectedFrameIndices.filter(
+                  (i) => i !== index,
+                ),
+              }
+            }
+            return {
+              selectedFrameIndices: [...state.selectedFrameIndices, index],
+            }
+          }),
+
+        selectFrameRange: (fromIndex, toIndex) =>
+          set({
+            selectedFrameIndices: Array.from(
+              { length: Math.abs(toIndex - fromIndex) + 1 },
+              (_, i) => Math.min(fromIndex, toIndex) + i,
+            ),
+          }),
+
+        clearFrameSelection: () => set({ selectedFrameIndices: [] }),
+
+        setTweenEasing: (easing) => set({ tweenEasing: easing }),
+
+        generateTween: (fromIndex, toIndex, count) =>
+          set((state) => {
+            if (fromIndex >= toIndex || count <= 0) return state
+
+            const { tweenedFrames } = generateTweenFrames(
+              state.frames,
+              fromIndex,
+              toIndex,
+              Math.min(count, 20),
+              state.tweenEasing,
+            )
+
+            // Insert tween frames (note: toIndex will shift after insertion)
+            const newFrames = [...state.frames]
+            const framesToRemove = toIndex - fromIndex - 1
+            newFrames.splice(fromIndex + 1, framesToRemove, ...tweenedFrames)
+
+            return {
+              frames: newFrames,
+              selectedFrameIndices: [],
+            }
+          }),
+
+        reorderFrames: (fromIndex, toIndex) =>
+          set((state) => {
+            if (fromIndex === toIndex) return state
+
+            const frames = [...state.frames]
+            const [movedFrame] = frames.splice(fromIndex, 1)
+            frames.splice(toIndex, 0, movedFrame)
+
+            // Update current frame index
+            let newCurrentIndex = state.currentFrameIndex
+            if (state.currentFrameIndex === fromIndex) {
+              newCurrentIndex = toIndex
+            } else if (
+              fromIndex < state.currentFrameIndex &&
+              toIndex >= state.currentFrameIndex
+            ) {
+              newCurrentIndex = state.currentFrameIndex - 1
+            } else if (
+              fromIndex > state.currentFrameIndex &&
+              toIndex <= state.currentFrameIndex
+            ) {
+              newCurrentIndex = state.currentFrameIndex + 1
+            }
+
+            return {
+              frames,
+              currentFrameIndex: newCurrentIndex,
+              selectedFrameIndices: [],
+            }
+          }),
+
+        // ============ HISTORY ACTIONS ============
+        saveHistory: () =>
+          set((state) => {
+            const newHistory = state.history.slice(0, state.historyIndex + 1)
+            newHistory.push(cloneFrames(state.frames))
+            return {
+              history: newHistory.slice(-50),
+              historyIndex: Math.min(newHistory.length - 1, 49),
+            }
+          }),
+
+        undo: () =>
+          set((state) => {
+            if (state.historyIndex < 0) return state
+            const frames = cloneFrames(state.history[state.historyIndex])
+            return {
+              frames,
+              historyIndex: state.historyIndex - 1,
+            }
+          }),
+
+        redo: () =>
+          set((state) => {
+            if (state.historyIndex >= state.history.length - 1) return state
+            const frames = cloneFrames(state.history[state.historyIndex + 1])
+            return {
+              frames,
+              historyIndex: state.historyIndex + 1,
+            }
+          }),
+      }),
+      {
+        name: 'editor-store',
+        // Only persist specific keys (not history)
+        partialize: (state) =>
+          Object.fromEntries(
+            Object.entries(state).filter(
+              ([key]) =>
+                !['history', 'historyIndex', 'isPlaying', 'isPaused'].includes(
+                  key,
+                ),
+            ),
+          ) as Partial<EditorStore>,
+      },
+    ),
+  ),
+)
+
+// ============ SELECTOR HOOKS ============
+// Stable selector functions defined outside to avoid infinite loops
+
+const selectToolbarSlice = (state: EditorStore) => ({
+  tool: state.tool,
+  brushBrightness: state.brushBrightness,
+  glow: state.glow,
+  bloomIntensity: state.bloomIntensity,
+  fadeIntensity: state.fadeIntensity,
+  transitionSpeed: state.transitionSpeed,
+  gridVisibility: state.gridVisibility,
+  isPaused: state.isPaused,
+  loop: state.loop,
+  setTool: state.setTool,
+  setBrushBrightness: state.setBrushBrightness,
+  toggleGlow: state.toggleGlow,
+  setBloomIntensity: state.setBloomIntensity,
+  setTransitionSpeed: state.setTransitionSpeed,
+  setFadeIntensity: state.setFadeIntensity,
+  setGridVisibility: state.setGridVisibility,
+  setPaused: state.setPaused,
+  toggleLoop: state.toggleLoop,
+  setFps: state.setFps,
+  setGridSize: state.setGridSize,
+  setPalette: state.setPalette,
+  fps: state.fps,
+  palette: state.palette,
+  gridSize: state.gridSize,
+})
+
+const selectEditorSlice = (state: EditorStore) => ({
+  frames: state.frames,
+  currentFrameIndex: state.currentFrameIndex,
+  gridSize: state.gridSize,
+  palette: state.palette,
+  tool: state.tool,
+  brushBrightness: state.brushBrightness,
+  glow: state.glow,
+  bloomIntensity: state.bloomIntensity,
+  fadeIntensity: state.fadeIntensity,
+  transitionSpeed: state.transitionSpeed,
+  gridVisibility: state.gridVisibility,
+  onionSkinEnabled: state.onionSkinEnabled,
+  onionSkinPreviousOpacity: state.onionSkinPreviousOpacity,
+  onionSkinNextOpacity: state.onionSkinNextOpacity,
+  onionSkinMode: state.onionSkinMode,
+  selectedFrameIndices: state.selectedFrameIndices,
+  isPlaying: state.isPlaying,
+  fps: state.fps,
+  loop: state.loop,
+  isPaused: state.isPaused,
+  setPixel: state.setPixel,
+  setPixelsBatch: state.setPixelsBatch,
+  saveHistory: state.saveHistory,
+  undo: state.undo,
+  redo: state.redo,
+  clearFrame: state.clearFrame,
+  setCurrentFrameIndex: state.setCurrentFrameIndex,
+})
+
+const selectAnimationSlice = (state: EditorStore) => ({
+  frames: state.frames,
+  currentFrameIndex: state.currentFrameIndex,
+  fps: state.fps,
+  isPlaying: state.isPlaying,
+  isPaused: state.isPaused,
+  loop: state.loop,
+  togglePlaying: state.togglePlaying,
+  setFps: state.setFps,
+  setCurrentFrameIndex: state.setCurrentFrameIndex,
+  addFrame: state.addFrame,
+  duplicateFrame: state.duplicateFrame,
+  deleteFrame: state.deleteFrame,
+  undo: state.undo,
+  redo: state.redo,
+  onionSkinEnabled: state.onionSkinEnabled,
+  onionSkinPreviousOpacity: state.onionSkinPreviousOpacity,
+  onionSkinNextOpacity: state.onionSkinNextOpacity,
+  onionSkinMode: state.onionSkinMode,
+  toggleOnionSkin: state.toggleOnionSkin,
+  setOnionSkinOpacity: state.setOnionSkinOpacity,
+  setOnionSkinMode: state.setOnionSkinMode,
+  selectedFrameIndices: state.selectedFrameIndices,
+  tweenEasing: state.tweenEasing,
+  setSelectedFrameIndex: state.setSelectedFrameIndex,
+  toggleFrameSelection: state.toggleFrameSelection,
+  selectFrameRange: state.selectFrameRange,
+  clearFrameSelection: state.clearFrameSelection,
+  generateTween: state.generateTween,
+  setTweenEasing: state.setTweenEasing,
+  reorderFrames: state.reorderFrames,
+  gridSize: state.gridSize,
+  palette: state.palette,
+})
+
+const selectPreviewSlice = (state: EditorStore) => ({
+  frames: state.frames,
+  currentFrameIndex: state.currentFrameIndex,
+  gridSize: state.gridSize,
+  palette: state.palette,
+  gridVisibility: state.gridVisibility,
+  glow: state.glow,
+  fps: state.fps,
+})
+
+const selectExportSlice = (state: EditorStore) => ({
+  frames: state.frames,
+  currentFrameIndex: state.currentFrameIndex,
+  gridSize: state.gridSize,
+  palette: state.palette,
+  fps: state.fps,
+  glow: state.glow,
+})
+
+const selectLoadActions = (state: EditorStore) => ({
+  loadPattern: state.loadPattern,
+  loadFrames: state.loadFrames,
+  palette: state.palette,
+})
+
+// Reusable hooks
+export function useToolbarState() {
+  return useEditorStoreOriginal(useShallow(selectToolbarSlice))
+}
+
+export function useEditorState() {
+  return useEditorStoreOriginal(useShallow(selectEditorSlice))
+}
+
+export function useAnimationState() {
+  return useEditorStoreOriginal(useShallow(selectAnimationSlice))
+}
+
+export function usePreviewState() {
+  return useEditorStoreOriginal(useShallow(selectPreviewSlice))
+}
+
+export function useExportState() {
+  return useEditorStoreOriginal(useShallow(selectExportSlice))
+}
+
+export function useLoadActions() {
+  return useEditorStoreOriginal(useShallow(selectLoadActions))
+}
+
+// ============ EXPORT STORE ============
+export { useEditorStoreOriginal as useEditorStore }
+
+// Re-export types
+export type { EditorStore }

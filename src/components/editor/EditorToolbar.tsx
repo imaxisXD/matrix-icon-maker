@@ -2,9 +2,6 @@ import {
   Brush,
   Eraser,
   PaintBucket,
-  Trash2,
-  Undo2,
-  Redo2,
   Play,
   Pause,
   Repeat,
@@ -12,10 +9,12 @@ import {
   Minus,
   Plus,
 } from 'lucide-react'
-import type { EditorStore, Tool } from '../../stores/editorStore'
+import { memo } from 'react'
+import type { Tool } from '../../stores/editorStore'
+import { useToolbarState } from '../../stores/editorStore'
 
 interface EditorToolbarProps {
-  store: EditorStore
+  // No props needed - uses hooks directly
 }
 
 const TOOLS: { id: Tool; icon: typeof Brush; label: string }[] = [
@@ -54,30 +53,55 @@ function ScrewHead({ className = '' }: { className?: string }) {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <circle cx="6" cy="6" r="5" fill="#ffffff" stroke="#e0ddd5" strokeWidth="1" />
+      <circle
+        cx="6"
+        cy="6"
+        r="5"
+        fill="#ffffff"
+        stroke="#e0ddd5"
+        strokeWidth="1"
+      />
       <line x1="3" y1="6" x2="9" y2="6" stroke="#d4d0c8" strokeWidth="1" />
       <line x1="6" y1="3" x2="6" y2="9" stroke="#d4d0c8" strokeWidth="1" />
     </svg>
   )
 }
 
-export function EditorToolbar({ store }: EditorToolbarProps) {
+export const EditorToolbar = memo(function EditorToolbar(
+  _props: EditorToolbarProps,
+) {
+  const state = useToolbarState()
+
+  // Create togglePaused function
+  const togglePaused = () => state.setPaused(!state.isPaused)
+
+  // Destructure for convenience
   const {
-    state,
+    tool,
+    brushBrightness,
+    glow,
+    bloomIntensity,
+    fadeIntensity,
+    transitionSpeed,
+    gridVisibility,
+    isPaused,
+    loop,
+    fps,
+    palette,
+    gridSize,
     setTool,
     setBrushBrightness,
-    setGridSize,
-    setPalette,
-    togglePaused,
-    toggleLoop,
-    setFps,
+    toggleGlow,
     setBloomIntensity,
     setTransitionSpeed,
     setFadeIntensity,
-    clearFrame,
-    undo,
-    redo,
-  } = store
+    setGridVisibility,
+    setPaused,
+    toggleLoop,
+    setFps,
+    setGridSize,
+    setPalette,
+  } = state
 
   return (
     <div className="flex flex-col gap-5">
@@ -99,20 +123,20 @@ export function EditorToolbar({ store }: EditorToolbarProps) {
               <div className="h-px flex-1 mx-3 bg-gradient-to-r from-[#0066cc]/10 to-transparent" />
             </div>
             <div className="grid grid-cols-3 gap-2">
-              {TOOLS.map((tool) => (
+              {TOOLS.map((toolItem) => (
                 <button
-                  key={tool.id}
-                  onClick={() => setTool(tool.id)}
+                  key={toolItem.id}
+                  onClick={() => setTool(toolItem.id)}
                   className={`relative h-11 flex items-center justify-center border transition-all group ${
-                    state.tool === tool.id
+                    tool === toolItem.id
                       ? 'border-[#0066cc] bg-[#e6f0ff] shadow-sm'
                       : 'border-[#e0ddd5] bg-white text-[#8a8a8a] hover:border-[#d4d0c8] hover:bg-[#f8f7f4]'
                   }`}
-                  title={tool.label}
+                  title={toolItem.label}
                 >
-                  <tool.icon
+                  <toolItem.icon
                     className={`h-4 w-4 transition-colors ${
-                      state.tool === tool.id ? 'text-[#0066cc]' : ''
+                      tool === toolItem.id ? 'text-[#0066cc]' : ''
                     }`}
                   />
                 </button>
@@ -129,12 +153,12 @@ export function EditorToolbar({ store }: EditorToolbarProps) {
               <div className="h-px flex-1 mx-3 bg-gradient-to-r from-[#0066cc]/10 to-transparent" />
             </div>
             <div className="flex gap-2">
-              {BRIGHTNESS_LEVELS.map((level, index) => (
+              {BRIGHTNESS_LEVELS.map((level) => (
                 <button
                   key={level}
                   onClick={() => setBrushBrightness(level)}
                   className={`relative h-10 flex-1 border transition-all overflow-hidden ${
-                    state.brushBrightness === level
+                    brushBrightness === level
                       ? 'border-[#0066cc] ring-1 ring-[#0066cc]/30'
                       : 'border-[#e0ddd5] hover:border-[#d4d0c8]'
                   }`}
@@ -142,7 +166,7 @@ export function EditorToolbar({ store }: EditorToolbarProps) {
                   <div
                     className="h-full w-full transition-all"
                     style={{
-                      backgroundColor: state.palette.on,
+                      backgroundColor: palette.on,
                       opacity: level,
                     }}
                   />
@@ -159,14 +183,16 @@ export function EditorToolbar({ store }: EditorToolbarProps) {
               </label>
               <div className="h-px flex-1 mx-3 bg-gradient-to-r from-[#0066cc]/10 to-transparent" />
             </div>
+            {/* Preset buttons */}
             <div className="grid grid-cols-3 gap-2">
               {GRID_SIZES.map((size) => (
                 <button
                   key={size.label}
-                  onClick={() => setGridSize(size.rows, size.cols)}
+                  onClick={() =>
+                    setGridSize({ rows: size.rows, cols: size.cols })
+                  }
                   className={`px-2 py-2 text-[10px] font-bold tracking-wider border transition-all ${
-                    state.gridSize.rows === size.rows &&
-                    state.gridSize.cols === size.cols
+                    gridSize.rows === size.rows && gridSize.cols === size.cols
                       ? 'border-[#0066cc] bg-[#e6f0ff] text-[#0066cc]'
                       : 'border-[#e0ddd5] bg-white text-[#6a6a6a] hover:border-[#d4d0c8] hover:bg-[#f8f7f4]'
                   }`}
@@ -174,6 +200,86 @@ export function EditorToolbar({ store }: EditorToolbarProps) {
                   {size.label}
                 </button>
               ))}
+            </div>
+
+            {/* Custom Size Controls */}
+            <div className="space-y-2">
+              <span className="text-[9px] uppercase tracking-wider text-[#8a8a8a]">
+                Custom Size
+              </span>
+              <div className="flex gap-3">
+                {/* Rows Control */}
+                <div className="flex-1 flex items-center gap-1.5">
+                  <button
+                    onClick={() =>
+                      setGridSize({
+                        rows: Math.max(3, gridSize.rows - 1),
+                        cols: gridSize.cols,
+                      })
+                    }
+                    className="h-7 w-7 flex items-center justify-center rounded border border-[#e0ddd5] bg-white text-[#8a8a8a] hover:border-[#0066cc]/50 hover:text-[#0066cc] transition-all"
+                    disabled={gridSize.rows <= 3}
+                  >
+                    <Minus className="h-3 w-3" />
+                  </button>
+                  <div className="flex-1 flex flex-col items-center">
+                    <span className="text-[8px] uppercase tracking-wider text-[#8a8a8a]">
+                      Rows
+                    </span>
+                    <span className="text-[12px] font-mono font-bold text-[#0066cc]">
+                      {gridSize.rows}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() =>
+                      setGridSize({
+                        rows: Math.min(32, gridSize.rows + 1),
+                        cols: gridSize.cols,
+                      })
+                    }
+                    className="h-7 w-7 flex items-center justify-center rounded border border-[#e0ddd5] bg-white text-[#8a8a8a] hover:border-[#0066cc]/50 hover:text-[#0066cc] transition-all"
+                    disabled={gridSize.rows >= 32}
+                  >
+                    <Plus className="h-3 w-3" />
+                  </button>
+                </div>
+
+                {/* Cols Control */}
+                <div className="flex-1 flex items-center gap-1.5">
+                  <button
+                    onClick={() =>
+                      setGridSize({
+                        rows: gridSize.rows,
+                        cols: Math.max(3, gridSize.cols - 1),
+                      })
+                    }
+                    className="h-7 w-7 flex items-center justify-center rounded border border-[#e0ddd5] bg-white text-[#8a8a8a] hover:border-[#0066cc]/50 hover:text-[#0066cc] transition-all"
+                    disabled={gridSize.cols <= 3}
+                  >
+                    <Minus className="h-3 w-3" />
+                  </button>
+                  <div className="flex-1 flex flex-col items-center">
+                    <span className="text-[8px] uppercase tracking-wider text-[#8a8a8a]">
+                      Cols
+                    </span>
+                    <span className="text-[12px] font-mono font-bold text-[#0066cc]">
+                      {gridSize.cols}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() =>
+                      setGridSize({
+                        rows: gridSize.rows,
+                        cols: Math.min(32, gridSize.cols + 1),
+                      })
+                    }
+                    className="h-7 w-7 flex items-center justify-center rounded border border-[#e0ddd5] bg-white text-[#8a8a8a] hover:border-[#0066cc]/50 hover:text-[#0066cc] transition-all"
+                    disabled={gridSize.cols >= 32}
+                  >
+                    <Plus className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -187,9 +293,9 @@ export function EditorToolbar({ store }: EditorToolbarProps) {
             </div>
             <div className="flex bg-[#f0efe9] p-1 rounded border border-[#e0ddd5]">
               <button
-                onClick={() => store.setGridVisibility('hidden')}
+                onClick={() => setGridVisibility('hidden')}
                 className={`flex-1 flex items-center justify-center p-2 rounded text-[9px] font-bold tracking-wider transition-all ${
-                  state.gridVisibility === 'hidden'
+                  gridVisibility === 'hidden'
                     ? 'bg-white text-[#0066cc] shadow-sm'
                     : 'text-[#8a8a8a] hover:text-[#6a6a6a]'
                 }`}
@@ -198,9 +304,9 @@ export function EditorToolbar({ store }: EditorToolbarProps) {
                 OFF
               </button>
               <button
-                onClick={() => store.setGridVisibility('normal')}
+                onClick={() => setGridVisibility('normal')}
                 className={`flex-1 flex items-center justify-center p-2 rounded text-[9px] font-bold tracking-wider transition-all ${
-                  state.gridVisibility === 'normal'
+                  gridVisibility === 'normal'
                     ? 'bg-white text-[#0066cc] shadow-sm'
                     : 'text-[#8a8a8a] hover:text-[#6a6a6a]'
                 }`}
@@ -209,9 +315,9 @@ export function EditorToolbar({ store }: EditorToolbarProps) {
                 MID
               </button>
               <button
-                onClick={() => store.setGridVisibility('prominent')}
+                onClick={() => setGridVisibility('prominent')}
                 className={`flex-1 flex items-center justify-center p-2 rounded text-[9px] font-bold tracking-wider transition-all ${
-                  state.gridVisibility === 'prominent'
+                  gridVisibility === 'prominent'
                     ? 'bg-white text-[#0066cc] shadow-sm'
                     : 'text-[#8a8a8a] hover:text-[#6a6a6a]'
                 }`}
@@ -234,9 +340,9 @@ export function EditorToolbar({ store }: EditorToolbarProps) {
               {COLOR_PRESETS.map((preset) => (
                 <button
                   key={preset.label}
-                  onClick={() => setPalette(preset.on, preset.off)}
+                  onClick={() => setPalette({ on: preset.on, off: preset.off })}
                   className={`relative aspect-square w-full border transition-all overflow-hidden group ${
-                    state.palette.on === preset.on
+                    palette.on === preset.on
                       ? 'border-[#0066cc] p-0.5 ring-1 ring-[#0066cc]/30 scale-95'
                       : 'border-[#e0ddd5] hover:scale-95'
                   }`}
@@ -268,12 +374,12 @@ export function EditorToolbar({ store }: EditorToolbarProps) {
                   Speed
                 </span>
                 <span className="text-[10px] font-mono text-[#0066cc]">
-                  {state.fps} FPS
+                  {fps} FPS
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setFps(Math.max(1, state.fps - 1))}
+                  onClick={() => setFps(Math.max(1, fps - 1))}
                   className="h-7 w-7 flex items-center justify-center rounded border border-[#e0ddd5] bg-white text-[#8a8a8a] hover:border-[#0066cc]/50 hover:text-[#0066cc] transition-all"
                 >
                   <Minus className="h-3 w-3" />
@@ -281,11 +387,11 @@ export function EditorToolbar({ store }: EditorToolbarProps) {
                 <div className="flex-1 h-1.5 bg-[#f0efe9] rounded-full overflow-hidden border border-[#e0ddd5]">
                   <div
                     className="h-full bg-gradient-to-r from-[#0066cc] to-[#3388dd] transition-all duration-150"
-                    style={{ width: `${(state.fps / 60) * 100}%` }}
+                    style={{ width: `${(fps / 60) * 100}%` }}
                   />
                 </div>
                 <button
-                  onClick={() => setFps(Math.min(60, state.fps + 1))}
+                  onClick={() => setFps(Math.min(60, fps + 1))}
                   className="h-7 w-7 flex items-center justify-center rounded border border-[#e0ddd5] bg-white text-[#8a8a8a] hover:border-[#0066cc]/50 hover:text-[#0066cc] transition-all"
                 >
                   <Plus className="h-3 w-3" />
@@ -298,13 +404,13 @@ export function EditorToolbar({ store }: EditorToolbarProps) {
               <button
                 onClick={togglePaused}
                 className={`relative flex flex-1 items-center justify-center gap-1.5 border py-2.5 text-[10px] font-bold tracking-wider transition-all ${
-                  state.isPaused
+                  isPaused
                     ? 'border-[#ff6b00] bg-[#fff5ed] text-[#ff6b00]'
                     : 'border-[#e0ddd5] bg-white text-[#8a8a8a] hover:border-[#d4d0c8] hover:text-[#6a6a6a]'
                 }`}
-                title={state.isPaused ? 'Resume' : 'Pause'}
+                title={isPaused ? 'Resume' : 'Pause'}
               >
-                {state.isPaused ? (
+                {isPaused ? (
                   <>
                     <Play className="h-3.5 w-3.5" />
                     PAUSED
@@ -319,14 +425,14 @@ export function EditorToolbar({ store }: EditorToolbarProps) {
               <button
                 onClick={toggleLoop}
                 className={`relative flex flex-1 items-center justify-center gap-1.5 border py-2.5 text-[10px] font-bold tracking-wider transition-all ${
-                  state.loop
+                  loop
                     ? 'border-[#0066cc] bg-[#e6f0ff] text-[#0066cc]'
                     : 'border-[#e0ddd5] bg-white text-[#8a8a8a] hover:border-[#d4d0c8] hover:text-[#6a6a6a]'
                 }`}
-                title={state.loop ? 'Looping On' : 'Looping Off'}
+                title={loop ? 'Looping On' : 'Looping Off'}
               >
                 <Repeat className="h-3.5 w-3.5" />
-                {state.loop ? 'LOOP' : 'ONCE'}
+                {loop ? 'LOOP' : 'ONCE'}
               </button>
             </div>
           </div>
@@ -343,63 +449,81 @@ export function EditorToolbar({ store }: EditorToolbarProps) {
             {/* Bloom Intensity */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[9px] uppercase tracking-wider text-[#8a8a8a]">Bloom</span>
+                <span className="text-[9px] uppercase tracking-wider text-[#8a8a8a]">
+                  Bloom
+                </span>
                 <span className="text-[10px] font-mono text-[#7c3aed]">
-                  {state.bloomIntensity}%
+                  {bloomIntensity}%
                 </span>
               </div>
-              <div className="h-1.5 bg-[#f0efe9] rounded-full overflow-hidden border border-[#e0ddd5]">
+              <div className="relative h-6 flex items-center">
+                <div className="absolute inset-x-0 h-1.5 bg-[#f0efe9] rounded-full overflow-hidden border border-[#e0ddd5]">
+                  <div
+                    className="h-full bg-gradient-to-r from-[#7c3aed] to-[#a78bfa] transition-all"
+                    style={{ width: `${bloomIntensity}%` }}
+                  />
+                </div>
+                {/* Thumb */}
                 <div
-                  className="h-full bg-gradient-to-r from-[#7c3aed] to-[#a78bfa] transition-all"
-                  style={{ width: `${state.bloomIntensity}%` }}
+                  className="absolute h-4 w-4 rounded-full bg-white border-2 border-[#7c3aed] shadow-sm cursor-grab active:cursor-grabbing transition-transform hover:scale-110"
+                  style={{ left: `calc(${bloomIntensity}% - 8px)` }}
+                />
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={bloomIntensity}
+                  onChange={(e) => setBloomIntensity(Number(e.target.value))}
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                 />
               </div>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={state.bloomIntensity}
-                onChange={(e) => setBloomIntensity(Number(e.target.value))}
-                className="absolute inset-0 opacity-0 cursor-pointer w-full h-4"
-                style={{ marginTop: '-8px' }}
-              />
             </div>
 
             {/* Fade Intensity */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[9px] uppercase tracking-wider text-[#8a8a8a]">Fade</span>
+                <span className="text-[9px] uppercase tracking-wider text-[#8a8a8a]">
+                  Fade
+                </span>
                 <span className="text-[10px] font-mono text-[#0891b2]">
-                  {state.fadeIntensity}%
+                  {fadeIntensity}%
                 </span>
               </div>
-              <div className="h-1.5 bg-[#f0efe9] rounded-full overflow-hidden border border-[#e0ddd5]">
+              <div className="relative h-6 flex items-center">
+                <div className="absolute inset-x-0 h-1.5 bg-[#f0efe9] rounded-full overflow-hidden border border-[#e0ddd5]">
+                  <div
+                    className="h-full bg-gradient-to-r from-[#0891b2] to-[#22d3ee] transition-all"
+                    style={{ width: `${fadeIntensity}%` }}
+                  />
+                </div>
+                {/* Thumb */}
                 <div
-                  className="h-full bg-gradient-to-r from-[#0891b2] to-[#22d3ee] transition-all"
-                  style={{ width: `${state.fadeIntensity}%` }}
+                  className="absolute h-4 w-4 rounded-full bg-white border-2 border-[#0891b2] shadow-sm cursor-grab active:cursor-grabbing transition-transform hover:scale-110"
+                  style={{ left: `calc(${fadeIntensity}% - 8px)` }}
+                />
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={fadeIntensity}
+                  onChange={(e) => setFadeIntensity(Number(e.target.value))}
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                 />
               </div>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={state.fadeIntensity}
-                onChange={(e) => setFadeIntensity(Number(e.target.value))}
-                className="absolute inset-0 opacity-0 cursor-pointer w-full h-4"
-                style={{ marginTop: '-8px' }}
-              />
             </div>
 
             {/* Transition Speed */}
             <div className="space-y-2">
-              <span className="text-[9px] uppercase tracking-wider text-[#8a8a8a]">Transition</span>
+              <span className="text-[9px] uppercase tracking-wider text-[#8a8a8a]">
+                Transition
+              </span>
               <div className="flex bg-[#f0efe9] p-1 rounded border border-[#e0ddd5]">
                 {(['slow', 'normal', 'fast'] as const).map((speed) => (
                   <button
                     key={speed}
                     onClick={() => setTransitionSpeed(speed)}
                     className={`flex-1 py-2 rounded text-[9px] font-bold tracking-wider transition-all ${
-                      state.transitionSpeed === speed
+                      transitionSpeed === speed
                         ? 'bg-white text-[#0066cc] shadow-sm'
                         : 'text-[#8a8a8a] hover:text-[#6a6a6a]'
                     }`}
@@ -415,35 +539,6 @@ export function EditorToolbar({ store }: EditorToolbarProps) {
         {/* Divider */}
         <div className="h-px bg-gradient-to-r from-transparent via-[#e0ddd5] to-transparent" />
       </div>
-
-      {/* Actions Panel */}
-      <div className="relative overflow-hidden rounded-lg border border-[#e0ddd5] bg-white shadow-sm">
-        <div className="p-4">
-          <div className="flex gap-2">
-            <button
-              onClick={undo}
-              className="relative flex-1 flex items-center justify-center border border-[#e0ddd5] bg-white py-2.5 text-[#8a8a8a] hover:border-[#0066cc]/50 hover:text-[#0066cc] transition-all"
-              title="Undo"
-            >
-              <Undo2 className="h-4 w-4" />
-            </button>
-            <button
-              onClick={redo}
-              className="relative flex-1 flex items-center justify-center border border-[#e0ddd5] bg-white py-2.5 text-[#8a8a8a] hover:border-[#0066cc]/50 hover:text-[#0066cc] transition-all"
-              title="Redo"
-            >
-              <Redo2 className="h-4 w-4" />
-            </button>
-            <button
-              onClick={clearFrame}
-              className="relative flex-1 flex items-center justify-center border border-[#e0ddd5] bg-white py-2.5 text-[#dd3355] hover:border-[#dd3355] hover:bg-[#fff5f5] transition-all"
-              title="Clear"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   )
-}
+})

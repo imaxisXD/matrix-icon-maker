@@ -88,26 +88,26 @@ export const soloBr: Frame = emptyFrame(9, 9).map((row, r) =>
 
 // --- Lines ---
 export const lineHTop: Frame = emptyFrame(9, 9).map((row, r) =>
-  row.map((_, c) => (r === 0 ? 1 : 0)),
+  row.map((_) => (r === 0 ? 1 : 0)),
 )
 
 export const lineHMid: Frame = emptyFrame(9, 9).map((row, r) =>
-  row.map((_, c) => (r === 4 ? 1 : 0)),
+  row.map((_) => (r === 4 ? 1 : 0)),
 )
 
 export const lineHBot: Frame = emptyFrame(9, 9).map((row, r) =>
-  row.map((_, c) => (r === 8 ? 1 : 0)),
+  row.map((_) => (r === 8 ? 1 : 0)),
 )
 
-export const lineVLeft: Frame = emptyFrame(9, 9).map((row, r) =>
+export const lineVLeft: Frame = emptyFrame(9, 9).map((row) =>
   row.map((_, c) => (c === 0 ? 1 : 0)),
 )
 
-export const lineVMid: Frame = emptyFrame(9, 9).map((row, r) =>
+export const lineVMid: Frame = emptyFrame(9, 9).map((row) =>
   row.map((_, c) => (c === 4 ? 1 : 0)),
 )
 
-export const lineVRight: Frame = emptyFrame(9, 9).map((row, r) =>
+export const lineVRight: Frame = emptyFrame(9, 9).map((row) =>
   row.map((_, c) => (c === 8 ? 1 : 0)),
 )
 
@@ -532,181 +532,263 @@ export function generateBlink(frame: Frame, steps = 12): Frame[] {
 export interface PresetPattern {
   id: string
   name: string
-  category:
-    | 'static'
-    | 'wave'
-    | 'diagonal'
-    | 'ripple'
-    | 'spiral'
-    | 'points'
-    | 'lines'
-    | 'shapes'
-    | 'frames'
-    | 'other'
+  category: 'static' | 'animated'
   frames: Frame[]
   size: number
 }
 
 export const presets: PresetPattern[] = [
-  // --- Points (Pulse) ---
+  // Animated patterns
   {
     id: 'solo-center',
     name: 'solo-center',
-    category: 'points',
+    category: 'animated',
     frames: generatePulse(soloCenter),
     size: 9,
   },
   {
     id: 'solo-tl',
     name: 'solo-tl',
-    category: 'points',
+    category: 'animated',
     frames: generateBlink(soloTl),
     size: 9,
   },
   {
     id: 'solo-br',
     name: 'solo-br',
-    category: 'points',
+    category: 'animated',
     frames: generateBlink(soloBr),
     size: 9,
   },
-
-  // --- Lines (Flow) ---
   {
     id: 'line-h-top',
     name: 'line-h-top',
-    category: 'lines',
+    category: 'animated',
     frames: generateShift(lineHTop, 'right'),
     size: 9,
   },
   {
     id: 'line-h-mid',
     name: 'line-h-mid',
-    category: 'lines',
+    category: 'animated',
     frames: generateShift(lineHMid, 'left'),
     size: 9,
   },
   {
     id: 'line-h-bot',
     name: 'line-h-bot',
-    category: 'lines',
+    category: 'animated',
     frames: generateShift(lineHBot, 'right'),
     size: 9,
   },
   {
     id: 'line-v-left',
     name: 'line-v-left',
-    category: 'lines',
+    category: 'animated',
     frames: generateShift(lineVLeft, 'down'),
     size: 9,
   },
   {
     id: 'line-v-mid',
     name: 'line-v-mid',
-    category: 'lines',
+    category: 'animated',
     frames: generateShift(lineVMid, 'up'),
     size: 9,
   },
   {
     id: 'line-v-right',
     name: 'line-v-right',
-    category: 'lines',
+    category: 'animated',
     frames: generateShift(lineVRight, 'down'),
     size: 9,
   },
   {
     id: 'line-diag-1',
     name: 'line-diag-1',
-    category: 'lines',
+    category: 'animated',
     frames: generateShift(lineDiag1, 'right'),
     size: 9,
   },
   {
     id: 'line-diag-2',
     name: 'line-diag-2',
-    category: 'lines',
+    category: 'animated',
     frames: generateShift(lineDiag2, 'left'),
     size: 9,
   },
-
-  // --- Shapes (Rotate/Pulse) ---
   {
     id: 'corners-only',
     name: 'corners-only',
-    category: 'shapes',
+    category: 'animated',
     frames: generateRotate(cornersOnly),
     size: 9,
   },
   {
     id: 'square-1',
     name: 'square-1',
-    category: 'shapes',
+    category: 'animated',
     frames: generatePulse(square1),
     size: 9,
   },
   {
     id: 'square-2',
     name: 'square-2',
-    category: 'shapes',
+    category: 'animated',
     frames: generateRotate(square2),
     size: 9,
   },
   {
     id: 'l-tl',
     name: 'l-tl',
-    category: 'shapes',
+    category: 'animated',
     frames: generateRotate(lTl),
     size: 9,
   },
   {
     id: 'l-tr',
     name: 'l-tr',
-    category: 'shapes',
+    category: 'animated',
     frames: generateRotate(lTr),
     size: 9,
   },
   {
     id: 'l-bl',
     name: 'l-bl',
-    category: 'shapes',
+    category: 'animated',
     frames: generateRotate(lBl),
     size: 9,
   },
   {
     id: 'l-br',
     name: 'l-br',
-    category: 'shapes',
+    category: 'animated',
     frames: generateRotate(lBr),
     size: 9,
   },
   {
     id: 't-top',
     name: 't-top',
-    category: 'shapes',
+    category: 'animated',
     frames: generateRotate(tTop),
     size: 9,
   },
   {
     id: 't-bot',
     name: 't-bot',
-    category: 'shapes',
+    category: 'animated',
     frames: generateRotate(tBot),
     size: 9,
   },
-
-  // --- Frames (Marching) ---
   {
     id: 'frame-outer',
     name: 'frame-outer',
-    category: 'frames',
+    category: 'animated',
     frames: generateMarchingBorder(9),
     size: 9,
   },
   {
     id: 'frame-inner',
     name: 'frame-inner',
-    category: 'frames',
+    category: 'animated',
     frames: generatePulse(frameInner),
+    size: 9,
+  },
+  {
+    id: 'wave-lr',
+    name: 'wave-lr',
+    category: 'animated',
+    frames: generateWaveLR(),
+    size: 9,
+  },
+  {
+    id: 'wave-rl',
+    name: 'wave-rl',
+    category: 'animated',
+    frames: generateWaveRL(),
+    size: 9,
+  },
+  {
+    id: 'wave-tb',
+    name: 'wave-tb',
+    category: 'animated',
+    frames: generateWaveTB(),
+    size: 9,
+  },
+  {
+    id: 'wave-bt',
+    name: 'wave-bt',
+    category: 'animated',
+    frames: generateWaveBT(),
+    size: 9,
+  },
+  {
+    id: 'diagonal-tl',
+    name: 'diagonal-tl',
+    category: 'animated',
+    frames: generateDiagonalTL(),
+    size: 9,
+  },
+  {
+    id: 'diagonal-tr',
+    name: 'diagonal-tr',
+    category: 'animated',
+    frames: generateDiagonalTR(),
+    size: 9,
+  },
+  {
+    id: 'diagonal-bl',
+    name: 'diagonal-bl',
+    category: 'animated',
+    frames: generateDiagonalBL(),
+    size: 9,
+  },
+  {
+    id: 'diagonal-br',
+    name: 'diagonal-br',
+    category: 'animated',
+    frames: generateDiagonalBR(),
+    size: 9,
+  },
+  {
+    id: 'ripple-out',
+    name: 'ripple-out',
+    category: 'animated',
+    frames: generateRippleOut(),
+    size: 9,
+  },
+  {
+    id: 'ripple-in',
+    name: 'ripple-in',
+    category: 'animated',
+    frames: generateRippleIn(),
+    size: 9,
+  },
+  {
+    id: 'spiral-cw',
+    name: 'spiral-cw',
+    category: 'animated',
+    frames: generateSpiralCW(),
+    size: 9,
+  },
+  {
+    id: 'spiral-ccw',
+    name: 'spiral-ccw',
+    category: 'animated',
+    frames: generateSpiralCCW(),
+    size: 9,
+  },
+  {
+    id: 'snake',
+    name: 'snake',
+    category: 'animated',
+    frames: generateSnake(),
+    size: 9,
+  },
+  {
+    id: 'rain',
+    name: 'rain',
+    category: 'animated',
+    frames: generateRain(),
     size: 9,
   },
 
@@ -754,118 +836,10 @@ export const presets: PresetPattern[] = [
     frames: [stripesV],
     size: 9,
   },
-
-  // Animated patterns...
-  {
-    id: 'wave-lr',
-    name: 'wave-lr',
-    category: 'wave',
-    frames: generateWaveLR(),
-    size: 9,
-  },
-  {
-    id: 'wave-rl',
-    name: 'wave-rl',
-    category: 'wave',
-    frames: generateWaveRL(),
-    size: 9,
-  },
-  {
-    id: 'wave-tb',
-    name: 'wave-tb',
-    category: 'wave',
-    frames: generateWaveTB(),
-    size: 9,
-  },
-  {
-    id: 'wave-bt',
-    name: 'wave-bt',
-    category: 'wave',
-    frames: generateWaveBT(),
-    size: 9,
-  },
-  {
-    id: 'diagonal-tl',
-    name: 'diagonal-tl',
-    category: 'diagonal',
-    frames: generateDiagonalTL(),
-    size: 9,
-  },
-  {
-    id: 'diagonal-tr',
-    name: 'diagonal-tr',
-    category: 'diagonal',
-    frames: generateDiagonalTR(),
-    size: 9,
-  },
-  {
-    id: 'diagonal-bl',
-    name: 'diagonal-bl',
-    category: 'diagonal',
-    frames: generateDiagonalBL(),
-    size: 9,
-  },
-  {
-    id: 'diagonal-br',
-    name: 'diagonal-br',
-    category: 'diagonal',
-    frames: generateDiagonalBR(),
-    size: 9,
-  },
-  {
-    id: 'ripple-out',
-    name: 'ripple-out',
-    category: 'ripple',
-    frames: generateRippleOut(),
-    size: 9,
-  },
-  {
-    id: 'ripple-in',
-    name: 'ripple-in',
-    category: 'ripple',
-    frames: generateRippleIn(),
-    size: 9,
-  },
-  {
-    id: 'spiral-cw',
-    name: 'spiral-cw',
-    category: 'spiral',
-    frames: generateSpiralCW(),
-    size: 9,
-  },
-  {
-    id: 'spiral-ccw',
-    name: 'spiral-ccw',
-    category: 'spiral',
-    frames: generateSpiralCCW(),
-    size: 9,
-  },
-  {
-    id: 'snake',
-    name: 'snake',
-    category: 'other',
-    frames: generateSnake(),
-    size: 9,
-  },
-  {
-    id: 'rain',
-    name: 'rain',
-    category: 'other',
-    frames: generateRain(),
-    size: 9,
-  },
 ]
 
 export const presetCategories = [
   { id: 'all', name: 'All' },
-  { id: 'points', name: 'Points' },
-  { id: 'lines', name: 'Lines' },
-  { id: 'shapes', name: 'Shapes' },
-  { id: 'frames', name: 'Frames' },
+  { id: 'animated', name: 'Animated' },
   { id: 'static', name: 'Static' },
-  { id: 'wave', name: 'Wave' },
-  { id: 'diagonal', name: 'Diagonal' },
-  { id: 'ripple', name: 'Ripple' },
-  { id: 'spiral', name: 'Spiral' },
-  { id: 'other', name: 'Other' },
 ]

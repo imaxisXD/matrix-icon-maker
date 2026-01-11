@@ -1,31 +1,105 @@
 import { useRef, useCallback, useState, useMemo } from 'react'
-import type { EditorStore, PixelUpdate } from '../../stores/editorStore'
+import { Undo2, Redo2, Trash2 } from 'lucide-react'
+import type { PixelUpdate, OnionSkinMode } from '../../stores/editorStore'
+import { useEditorState } from '../../stores/editorStore'
 import type { OnionSkinLayer } from '../ui/Matrix'
 import { Matrix } from '../ui/Matrix'
+import { emptyFrame } from '../ui/Matrix'
 
 interface MatrixEditorProps {
-  store: EditorStore
   size?: number
   gap?: number
 }
 
-export function MatrixEditor({ store, size = 28, gap = 4 }: MatrixEditorProps) {
+export function MatrixEditor({ size = 28, gap = 4 }: MatrixEditorProps) {
+  const editorState = useEditorState()
   const {
-    state,
-    currentFrame,
     setPixel,
     setPixelsBatch,
     saveHistory,
-    onionSkinLayers,
-    setCurrentFrame,
-  } = store
+    undo,
+    redo,
+    clearFrame,
+    setCurrentFrameIndex,
+    frames,
+    currentFrameIndex,
+    gridSize,
+    palette,
+    tool,
+    brushBrightness,
+    gridVisibility,
+    glow,
+    bloomIntensity,
+    fadeIntensity,
+    transitionSpeed,
+    fps,
+    loop,
+    isPlaying,
+    isPaused,
+    onionSkinEnabled,
+    onionSkinMode,
+    onionSkinPreviousOpacity,
+    onionSkinNextOpacity,
+  } = editorState
+
   const containerRef = useRef<HTMLDivElement>(null)
   const [isDrawing, setIsDrawing] = useState(false)
   const [lastCell, setLastCell] = useState<{ row: number; col: number } | null>(
     null,
   )
 
-  const { rows, cols } = state.gridSize
+  const { rows, cols } = gridSize
+
+  // Computed values - calculated locally to avoid infinite re-renders
+  const currentFrame = useMemo(
+    () => frames[currentFrameIndex] || emptyFrame(rows, cols),
+    [frames, currentFrameIndex, rows, cols],
+  )
+
+  const onionSkinLayers = useMemo<Array<{
+    frame: number[][]
+    opacity: number
+    type: 'previous' | 'next'
+  }>>(() => {
+    if (!onionSkinEnabled) return []
+
+    const layers: Array<{
+      frame: number[][]
+      opacity: number
+      type: 'previous' | 'next'
+    }> = []
+
+    // Previous frame
+    if (onionSkinMode === 'previous' || onionSkinMode === 'both') {
+      if (currentFrameIndex > 0) {
+        layers.push({
+          frame: frames[currentFrameIndex - 1],
+          opacity: onionSkinPreviousOpacity / 100,
+          type: 'previous',
+        })
+      }
+    }
+
+    // Next frame
+    if (onionSkinMode === 'next' || onionSkinMode === 'both') {
+      if (currentFrameIndex < frames.length - 1) {
+        layers.push({
+          frame: frames[currentFrameIndex + 1],
+          opacity: onionSkinNextOpacity / 100,
+          type: 'next',
+        })
+      }
+    }
+
+    return layers
+  }, [
+    onionSkinEnabled,
+    onionSkinMode,
+    currentFrameIndex,
+    frames,
+    onionSkinPreviousOpacity,
+    onionSkinNextOpacity,
+  ])
 
   // Get cell from mouse position
   const getCellFromEvent = useCallback(
@@ -60,8 +134,6 @@ export function MatrixEditor({ store, size = 28, gap = 4 }: MatrixEditorProps) {
   // Apply tool to cell
   const applyTool = useCallback(
     (row: number, col: number) => {
-      const { tool, brushBrightness } = state
-
       switch (tool) {
         case 'brush':
           setPixel(row, col, brushBrightness)
@@ -96,13 +168,13 @@ export function MatrixEditor({ store, size = 28, gap = 4 }: MatrixEditorProps) {
           break
       }
     },
-    [state, currentFrame, setPixel, setPixelsBatch, rows, cols],
+    [tool, brushBrightness, currentFrame, setPixel, setPixelsBatch, rows, cols],
   )
 
   // Mouse/touch handlers
   const handlePointerDown = useCallback(
     (e: React.MouseEvent | React.TouchEvent) => {
-      if (state.isPlaying) return // Don't allow drawing during playback
+      if (isPlaying) return // Don't allow drawing during playback
       e.preventDefault()
       saveHistory()
       setIsDrawing(true)
@@ -112,13 +184,13 @@ export function MatrixEditor({ store, size = 28, gap = 4 }: MatrixEditorProps) {
         applyTool(cell.row, cell.col)
       }
     },
-    [getCellFromEvent, applyTool, saveHistory, state.isPlaying],
+    [getCellFromEvent, applyTool, saveHistory, isPlaying],
   )
 
   const handlePointerMove = useCallback(
     (e: React.MouseEvent | React.TouchEvent) => {
       if (!isDrawing) return
-      if (state.isPlaying) return
+      if (isPlaying) return
       e.preventDefault()
 
       const cell = getCellFromEvent(e)
@@ -127,7 +199,7 @@ export function MatrixEditor({ store, size = 28, gap = 4 }: MatrixEditorProps) {
         applyTool(cell.row, cell.col)
       }
     },
-    [isDrawing, getCellFromEvent, applyTool, lastCell, state.isPlaying],
+    [isDrawing, getCellFromEvent, applyTool, lastCell, isPlaying],
   )
 
   const handlePointerUp = useCallback(() => {
@@ -160,28 +232,28 @@ export function MatrixEditor({ store, size = 28, gap = 4 }: MatrixEditorProps) {
     }
 
     const getOffStyle = () => {
-      if (state.gridVisibility === 'hidden') return offHidden
-      if (state.gridVisibility === 'prominent') return offProminent
+      if (gridVisibility === 'hidden') return offHidden
+      if (gridVisibility === 'prominent') return offProminent
       return offNormal
     }
 
     return {
       getOffStyle,
       getOnStyle: (value: number) => {
-        const glowColor = state.palette.on + '40'
+        const glowColor = palette.on + '40'
         return {
-          backgroundColor: state.palette.on,
+          backgroundColor: palette.on,
           opacity: value,
           boxShadow:
-            state.glow && value > 0.3
-              ? `0 0 ${size / 4}px ${state.palette.on}, 0 0 ${size / 2}px ${glowColor}`
+            glow && value > 0.3
+              ? `0 0 ${size / 4}px ${palette.on}, 0 0 ${size / 2}px ${glowColor}`
               : undefined,
           border: 'none',
         }
       },
       offStyle: getOffStyle(),
     }
-  }, [state.palette, state.gridVisibility, state.glow, size])
+  }, [palette, gridVisibility, glow, size])
 
   const getCellStyle = (value: number) => {
     if (value <= 0.05) {
@@ -371,25 +443,50 @@ export function MatrixEditor({ store, size = 28, gap = 4 }: MatrixEditorProps) {
         className="relative z-10"
         style={{ width: gridWidth, height: gridHeight }}
       >
+        {/* Action Buttons - Undo/Redo/Clear */}
+        <div className="absolute -top-12 left-0 flex gap-2">
+          <button
+            onClick={undo}
+            className="h-8 w-8 flex items-center justify-center rounded border border-[#e0ddd5] bg-white text-[#8a8a8a] hover:border-[#0066cc]/50 hover:text-[#0066cc] transition-all shadow-sm"
+            title="Undo"
+          >
+            <Undo2 className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={redo}
+            className="h-8 w-8 flex items-center justify-center rounded border border-[#e0ddd5] bg-white text-[#8a8a8a] hover:border-[#0066cc]/50 hover:text-[#0066cc] transition-all shadow-sm"
+            title="Redo"
+          >
+            <Redo2 className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={clearFrame}
+            className="h-8 w-8 flex items-center justify-center rounded border border-[#e0ddd5] bg-white text-[#dd3355] hover:border-[#dd3355] hover:bg-[#fff5f5] transition-all shadow-sm"
+            title="Clear"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
         {/* Playback mode - use Matrix component with animation */}
-        {state.isPlaying ? (
+        {isPlaying ? (
           <div className="relative w-full h-full flex items-center justify-center">
             <Matrix
               rows={rows}
               cols={cols}
-              frames={state.frames}
-              fps={state.fps}
-              loop={state.loop}
-              paused={state.isPaused}
+              frames={frames}
+              fps={fps}
+              loop={loop}
+              paused={isPaused}
               autoplay={true}
               size={matrixSize}
               gap={matrixGap}
-              palette={state.palette}
-              glow={state.glow}
-              bloomIntensity={state.bloomIntensity}
-              fadeIntensity={state.fadeIntensity}
-              transitionSpeed={state.transitionSpeed}
-              onFrame={(index) => setCurrentFrame(index)}
+              palette={palette}
+              glow={glow}
+              bloomIntensity={bloomIntensity}
+              fadeIntensity={fadeIntensity}
+              transitionSpeed={transitionSpeed}
+              onFrame={(index) => setCurrentFrameIndex(index)}
               onionSkinLayers={onionSkinLayers}
             />
             {/* Playing indicator */}
@@ -466,7 +563,7 @@ export function MatrixEditor({ store, size = 28, gap = 4 }: MatrixEditorProps) {
                             width: size,
                             height: size,
                             borderRadius: '50%',
-                            backgroundColor: state.palette.on,
+                            backgroundColor: palette.on,
                             opacity: opacity * 0.6,
                             transform: 'scale(0.9)',
                             filter: layer.type === 'previous'

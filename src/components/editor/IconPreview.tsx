@@ -1,10 +1,10 @@
 import { Monitor, Sun, Moon } from 'lucide-react'
-import { useState } from 'react'
-import type { EditorStore } from '../../stores/editorStore'
+import { useState, memo } from 'react'
+import { usePreviewState } from '../../stores/editorStore'
 import { Matrix } from '../ui/Matrix'
 
 interface IconPreviewProps {
-  store: EditorStore
+  // No props needed - uses hooks directly
 }
 
 const SIZE_VARIATIONS = [
@@ -30,20 +30,28 @@ function ScrewHead({ className = '' }: { className?: string }) {
   )
 }
 
-export function IconPreview({ store }: IconPreviewProps) {
-  const { state } = store
+export const IconPreview = memo(function IconPreview(_props: IconPreviewProps) {
+  const previewState = usePreviewState()
+  const {
+    frames,
+    currentFrameIndex,
+    gridSize,
+    palette,
+    gridVisibility,
+    glow,
+    fps,
+  } = previewState
+
   const [darkBg, setDarkBg] = useState(false)
 
-  const frames = state.frames
-
   const getPreviewPalette = () => {
-    if (state.gridVisibility === 'hidden') {
-      return { on: state.palette.on, off: 'transparent' }
+    if (gridVisibility === 'hidden') {
+      return { on: palette.on, off: 'transparent' }
     }
-    if (state.gridVisibility === 'prominent') {
-      return { on: state.palette.on, off: darkBg ? '#2a2a3a' : '#e0ddd5' }
+    if (gridVisibility === 'prominent') {
+      return { on: palette.on, off: darkBg ? '#2a2a3a' : '#e0ddd5' }
     }
-    return state.palette
+    return palette
   }
 
   const previewPalette = getPreviewPalette()
@@ -128,13 +136,13 @@ export function IconPreview({ store }: IconPreviewProps) {
                     <div className="absolute -bottom-1 -right-1 h-1.5 w-1.5 border-r border-b border-[#0066cc]/20" />
 
                     <Matrix
-                      rows={state.gridSize.rows}
-                      cols={state.gridSize.cols}
-                      pattern={frames[state.currentFrameIndex]}
+                      rows={gridSize.rows}
+                      cols={gridSize.cols}
+                      pattern={frames[currentFrameIndex]}
                       size={variation.size}
                       gap={variation.gap}
                       palette={previewPalette}
-                      glow={state.glow}
+                      glow={glow}
                     />
                   </div>
                   <span className="font-mono text-[8px] uppercase tracking-wider text-[#8a8a8a]">
@@ -155,20 +163,20 @@ export function IconPreview({ store }: IconPreviewProps) {
                 <div className="flex items-center gap-2">
                   <div
                     className="h-4 w-4 rounded border border-[#e0ddd5] shadow-sm"
-                    style={{ backgroundColor: state.palette.on }}
+                    style={{ backgroundColor: palette.on }}
                   />
                   <span className="font-mono text-[9px] text-[#6a6a6a]">
-                    {state.palette.on}
+                    {palette.on}
                   </span>
                 </div>
                 <div className="h-px w-8 bg-[#e0ddd5]" />
                 <div className="flex items-center gap-2">
                   <div
                     className="h-4 w-4 rounded border border-[#e0ddd5] shadow-sm"
-                    style={{ backgroundColor: state.gridVisibility === 'hidden' ? '#ffffff' : previewPalette.off }}
+                    style={{ backgroundColor: gridVisibility === 'hidden' ? '#ffffff' : previewPalette.off }}
                   />
                   <span className="font-mono text-[9px] text-[#6a6a6a]">
-                    {state.gridVisibility === 'hidden' ? 'transparent' : previewPalette.off}
+                    {gridVisibility === 'hidden' ? 'transparent' : previewPalette.off}
                   </span>
                 </div>
               </div>
@@ -186,7 +194,7 @@ export function IconPreview({ store }: IconPreviewProps) {
                 Resolution
               </div>
               <div className="text-lg font-bold text-[#0066cc]">
-                {state.gridSize.rows}x{state.gridSize.cols}
+                {gridSize.rows}x{gridSize.cols}
               </div>
             </div>
             <div className="text-center border-l border-r border-[#e0ddd5]">
@@ -194,7 +202,7 @@ export function IconPreview({ store }: IconPreviewProps) {
                 Frames
               </div>
               <div className="text-lg font-bold text-[#7c3aed]">
-                {state.frames.length}
+                {frames.length}
               </div>
             </div>
             <div className="text-center">
@@ -202,7 +210,7 @@ export function IconPreview({ store }: IconPreviewProps) {
                 FPS
               </div>
               <div className="text-lg font-bold text-[#00aa55]">
-                {state.fps}
+                {fps}
               </div>
             </div>
           </div>
@@ -210,4 +218,4 @@ export function IconPreview({ store }: IconPreviewProps) {
       </div>
     </div>
   )
-}
+})

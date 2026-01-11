@@ -1,6 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
-import { useEditorStore } from '../stores/editorStore'
 import { MatrixEditor } from '../components/editor/MatrixEditor'
 import { EditorToolbar } from '../components/editor/EditorToolbar'
 import { AnimationTimeline } from '../components/editor/AnimationTimeline'
@@ -13,7 +12,6 @@ import { LayoutGrid, Layers, Wand2 } from 'lucide-react'
 export const Route = createFileRoute('/editor')({ component: EditorPage })
 
 function EditorPage() {
-  const store = useEditorStore()
   const [activeTab, setActiveTab] = useState<'presets' | 'timeline' | 'icons'>(
     'presets',
   )
@@ -26,7 +24,7 @@ function EditorPage() {
           {/* LEFT: Toolbar */}
           <div className="col-span-12 lg:col-span-2">
             <div className="sticky top-6">
-              <EditorToolbar store={store} />
+              <EditorToolbar />
             </div>
           </div>
 
@@ -42,7 +40,7 @@ function EditorPage() {
                 <div className="absolute bottom-3 right-3 h-1.5 w-1.5 rounded-full border border-[#0066cc]/20" />
 
                 <div className="flex min-h-[520px] items-center justify-center p-4">
-                  <MatrixEditor store={store} size={28} gap={4} />
+                  <MatrixEditor size={28} gap={4} />
                 </div>
               </div>
 
@@ -96,13 +94,13 @@ function EditorPage() {
                 <div className="p-5">
                   {activeTab === 'presets' ? (
                     <div className="h-[280px]">
-                      <PresetPatterns store={store} />
+                      <PresetPatterns />
                     </div>
                   ) : activeTab === 'timeline' ? (
-                    <AnimationTimeline store={store} />
+                    <AnimationTimeline />
                   ) : (
                     <div className="h-[420px]">
-                      <IconBrowser store={store} />
+                      <IconBrowser />
                     </div>
                   )}
                 </div>
@@ -113,8 +111,8 @@ function EditorPage() {
           {/* RIGHT: Preview & Export */}
           <div className="col-span-12 lg:col-span-4">
             <div className="flex flex-col gap-6 sticky top-6">
-              <IconPreview store={store} />
-              <ExportPanel store={store} />
+              <IconPreview />
+              <ExportPanel />
             </div>
           </div>
         </div>

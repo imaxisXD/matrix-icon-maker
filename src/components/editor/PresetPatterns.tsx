@@ -1,27 +1,25 @@
-import { useState } from 'react'
+import { useState, memo } from 'react'
 import {
   presets,
   presetCategories,
   type PresetPattern,
 } from '../../data/presets'
 import { Matrix } from '../ui/Matrix'
-import type { EditorStore } from '../../stores/editorStore'
-import { Search, Grid3x3 } from 'lucide-react'
+import { useLoadActions } from '../../stores/editorStore'
+import { Search, Grid3x3, Activity } from 'lucide-react'
 
 interface PresetPatternsProps {
-  store: EditorStore
   onPatternSelect?: () => void
 }
 
-export function PresetPatterns({
-  store,
+export const PresetPatterns = memo(function PresetPatterns({
   onPatternSelect,
 }: PresetPatternsProps) {
   const [category, setCategory] = useState('all')
   const [search, setSearch] = useState('')
   const [hoveredId, setHoveredId] = useState<string | null>(null)
 
-  const { loadFrames } = store
+  const { loadFrames } = useLoadActions()
 
   const filteredPresets = presets.filter((preset) => {
     const matchesCategory = category === 'all' || preset.category === category
@@ -55,6 +53,7 @@ export function PresetPatterns({
           {presetCategories.map((cat) => (
             <button
               key={cat.id}
+              type="button"
               onClick={() => setCategory(cat.id)}
               className={`rounded px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider transition-all border ${
                 category === cat.id
@@ -74,22 +73,34 @@ export function PresetPatterns({
           {filteredPresets.map((preset) => {
             const isHovered = hoveredId === preset.id
             const showFrames = isHovered && preset.frames.length > 1
+            const isAnimated = preset.frames.length > 1
 
             return (
               <button
                 key={preset.id}
+                type="button"
                 onClick={() => handleSelect(preset)}
                 onMouseEnter={() => setHoveredId(preset.id)}
                 onMouseLeave={() => setHoveredId(null)}
                 className="group flex flex-col items-center gap-2 focus:outline-none"
               >
-                <div className="relative flex items-center justify-center p-2 rounded-lg border transition-all duration-200 group-hover:scale-105"
+                <div
+                  className="relative flex items-center justify-center p-2 rounded-lg border transition-all duration-200 group-hover:scale-105"
                   style={{
                     borderColor: isHovered ? '#0066cc' : '#e0ddd5',
                     background: isHovered ? '#e6f0ff' : 'transparent',
-                    boxShadow: isHovered ? '0 2px 8px rgba(0, 102, 204, 0.15)' : 'none',
+                    boxShadow: isHovered
+                      ? '0 2px 8px rgba(0, 102, 204, 0.15)'
+                      : 'none',
                   }}
                 >
+                  {/* Animated badge */}
+                  {isAnimated && (
+                    <div className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#0066cc] text-white shadow-sm">
+                      <Activity className="h-2.5 w-2.5" strokeWidth={3} />
+                    </div>
+                  )}
+
                   {/* Corner accents on hover */}
                   {isHovered && (
                     <>
@@ -132,8 +143,9 @@ export function PresetPatterns({
 
       {/* Results count */}
       <div className="text-[9px] font-mono text-[#8a8a8a] text-center uppercase tracking-wider">
-        {filteredPresets.length} Pattern{filteredPresets.length !== 1 ? 's' : ''} Found
+        {filteredPresets.length} Pattern
+        {filteredPresets.length !== 1 ? 's' : ''} Found
       </div>
     </div>
   )
-}
+})

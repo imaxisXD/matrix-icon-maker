@@ -16,14 +16,14 @@ import {
   Keyboard,
 } from 'lucide-react'
 import type {
-  EditorStore,
   OnionSkinMode,
   TweenEasing,
 } from '../../stores/editorStore'
+import { useAnimationState } from '../../stores/editorStore'
 import { Matrix } from '../ui/Matrix'
 
 interface AnimationTimelineProps {
-  store: EditorStore
+  // No props needed - uses hooks directly
 }
 
 interface DragState {
@@ -47,33 +47,46 @@ const SHORTCUTS = [
   { key: 'D', action: 'Duplicate current frame' },
 ] as const
 
-export function AnimationTimeline({ store }: AnimationTimelineProps) {
+export function AnimationTimeline(_props: AnimationTimelineProps) {
+  // Use animation state hook - includes all necessary state
   const {
-    state,
+    frames,
+    currentFrameIndex,
+    fps,
+    isPlaying,
+    loop,
+    togglePlaying,
+    setFps,
+    setCurrentFrameIndex,
     addFrame,
     duplicateFrame,
     deleteFrame,
-    setCurrentFrame,
-    setFps,
-    togglePlaying,
     undo,
     redo,
     // Onion skin
-    onionSkinLayers,
+    onionSkinEnabled,
+    onionSkinPreviousOpacity,
+    onionSkinNextOpacity,
+    onionSkinMode,
     toggleOnionSkin,
     setOnionSkinOpacity,
     setOnionSkinMode,
     // Frame selection
+    selectedFrameIndices,
     setSelectedFrameIndex,
     toggleFrameSelection,
     selectFrameRange,
     clearFrameSelection,
     // Tween
+    tweenEasing,
     generateTween,
     setTweenEasing,
     // Drag & drop
     reorderFrames,
-  } = store
+    // Display
+    gridSize,
+    palette,
+  } = useAnimationState()
 
   const [showOnionControls, setShowOnionControls] = useState(false)
   const [showTweenDialog, setShowTweenDialog] = useState(false)
@@ -83,14 +96,6 @@ export function AnimationTimeline({ store }: AnimationTimelineProps) {
     fromIndex: null,
     dropIndex: null,
   })
-
-  // Access state properties
-  const selectedFrameIndices = state.selectedFrameIndices ?? []
-  const onionSkinEnabled = state.onionSkinEnabled ?? false
-  const onionSkinPreviousOpacity = state.onionSkinPreviousOpacity ?? 30
-  const onionSkinNextOpacity = state.onionSkinNextOpacity ?? 15
-  const onionSkinMode = state.onionSkinMode ?? 'both'
-  const tweenEasing = state.tweenEasing ?? 'smoothstep'
 
   // Computed values
   const hasSelection = selectedFrameIndices.length > 0
@@ -104,7 +109,7 @@ export function AnimationTimeline({ store }: AnimationTimelineProps) {
   // Frame click handler with selection support
   const handleFrameClick = useCallback(
     (index: number, event: React.MouseEvent) => {
-      if (state.isPlaying) return
+      if (isPlaying) return
 
       if (event.shiftKey && selectedFrameIndices.length === 1) {
         // Range select
@@ -115,36 +120,36 @@ export function AnimationTimeline({ store }: AnimationTimelineProps) {
       } else {
         // Normal click - select single and navigate
         setSelectedFrameIndex(index)
-        setCurrentFrame(index)
+        setCurrentFrameIndex(index)
       }
     },
     [
-      state.isPlaying,
+      isPlaying,
       selectedFrameIndices,
       selectFrameRange,
       toggleFrameSelection,
       setSelectedFrameIndex,
-      setCurrentFrame,
+      setCurrentFrameIndex,
     ],
   )
 
   // Drag start handler
   const handleDragStart = useCallback(
     (index: number) => {
-      if (state.isPlaying) return
+      if (isPlaying) return
       setDragState({ fromIndex: index, dropIndex: null })
     },
-    [state.isPlaying],
+    [isPlaying],
   )
 
   // Drag over handler
   const handleDragOver = useCallback(
     (index: number, event: React.DragEvent) => {
       event.preventDefault()
-      if (state.isPlaying || dragState.fromIndex === null) return
+      if (isPlaying || dragState.fromIndex === null) return
       setDragState((prev) => ({ ...prev, dropIndex: index }))
     },
-    [state.isPlaying, dragState.fromIndex],
+    [isPlaying, dragState.fromIndex],
   )
 
   // Drop handler
@@ -230,7 +235,7 @@ export function AnimationTimeline({ store }: AnimationTimelineProps) {
         case 'Backspace':
           if (hasSelection && selectedFrameIndices.length === 1) {
             e.preventDefault()
-            setCurrentFrame(selectedFrameIndices[0])
+            setCurrentFrameIndex(selectedFrameIndices[0])
             deleteFrame()
             clearFrameSelection()
           } else {
@@ -240,16 +245,16 @@ export function AnimationTimeline({ store }: AnimationTimelineProps) {
           break
         case 'ArrowLeft':
           e.preventDefault()
-          if (state.currentFrameIndex > 0) {
-            setCurrentFrame(state.currentFrameIndex - 1)
-            setSelectedFrameIndex(state.currentFrameIndex - 1)
+          if (currentFrameIndex > 0) {
+            setCurrentFrameIndex(currentFrameIndex - 1)
+            setSelectedFrameIndex(currentFrameIndex - 1)
           }
           break
         case 'ArrowRight':
           e.preventDefault()
-          if (state.currentFrameIndex < state.frames.length - 1) {
-            setCurrentFrame(state.currentFrameIndex + 1)
-            setSelectedFrameIndex(state.currentFrameIndex + 1)
+          if (currentFrameIndex < frames.length - 1) {
+            setCurrentFrameIndex(currentFrameIndex + 1)
+            setSelectedFrameIndex(currentFrameIndex + 1)
           }
           break
         case 'n':
@@ -286,9 +291,9 @@ export function AnimationTimeline({ store }: AnimationTimelineProps) {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [
-    state.isPlaying,
-    state.currentFrameIndex,
-    state.frames.length,
+    isPlaying,
+    currentFrameIndex,
+    frames.length,
     hasTwoSelected,
     hasSelection,
     selectedFrameIndices,
@@ -300,7 +305,7 @@ export function AnimationTimeline({ store }: AnimationTimelineProps) {
     deleteFrame,
     undo,
     redo,
-    setCurrentFrame,
+    setCurrentFrameIndex,
     setSelectedFrameIndex,
     addFrame,
     duplicateFrame,
@@ -315,13 +320,13 @@ export function AnimationTimeline({ store }: AnimationTimelineProps) {
           <button
             onClick={togglePlaying}
             className={`relative flex items-center gap-2 rounded border px-4 py-2 text-[10px] font-bold uppercase tracking-wider transition-all ${
-              state.isPlaying
+              isPlaying
                 ? 'border-[#0066cc] bg-[#e6f0ff] text-[#0066cc]'
                 : 'border-[#e0ddd5] bg-white text-[#8a8a8a] hover:border-[#0066cc]/50 hover:text-[#0066cc]'
             }`}
             title="Play/Pause (Space)"
           >
-            {state.isPlaying ? (
+            {isPlaying ? (
               <>
                 <Pause className="h-3.5 w-3.5" />
                 Pause
@@ -344,7 +349,7 @@ export function AnimationTimeline({ store }: AnimationTimelineProps) {
                 type="range"
                 min="1"
                 max="30"
-                value={state.fps}
+                value={fps}
                 onChange={(e) => setFps(Number(e.target.value))}
                 className="h-1.5 w-20 appearance-none rounded-full bg-[#f0efe9] accent-[#0066cc]"
                 style={{
@@ -354,7 +359,7 @@ export function AnimationTimeline({ store }: AnimationTimelineProps) {
                 }}
               />
               <span className="w-10 font-mono text-[10px] text-[#0066cc]">
-                {state.fps} FPS
+                {fps} FPS
               </span>
             </div>
           </div>
@@ -644,8 +649,8 @@ export function AnimationTimeline({ store }: AnimationTimelineProps) {
       {/* Timeline Track */}
       <div className="flex items-center gap-3 p-2">
         <button
-          onClick={() => setCurrentFrame(state.currentFrameIndex - 1)}
-          disabled={state.currentFrameIndex === 0}
+          onClick={() => setCurrentFrameIndex(currentFrameIndex - 1)}
+          disabled={currentFrameIndex === 0}
           className="flex h-20 w-10 items-center justify-center rounded border border-[#e0ddd5] bg-white text-[#8a8a8a] disabled:opacity-30 hover:border-[#0066cc]/30 hover:text-[#0066cc] transition-all"
           title="Previous frame (←)"
         >
@@ -653,9 +658,9 @@ export function AnimationTimeline({ store }: AnimationTimelineProps) {
         </button>
 
         <div className="flex flex-1 gap-3 overflow-x-auto py-2 scrollbar-thin">
-          {state.frames.map((frame, index) => {
+          {frames.map((frame, index) => {
             const isSelected = selectedFrameIndices.includes(index)
-            const isCurrent = index === state.currentFrameIndex
+            const isCurrent = index === currentFrameIndex
             const isDragging = dragState.fromIndex === index
             const isDropTarget = dragState.dropIndex === index
 
@@ -676,7 +681,7 @@ export function AnimationTimeline({ store }: AnimationTimelineProps) {
                 )}
 
                 <button
-                  draggable={!state.isPlaying}
+                  draggable={!isPlaying}
                   onDragStart={() => handleDragStart(index)}
                   onDragOver={(e) => handleDragOver(index, e)}
                   onDrop={(e) => handleDrop(index, e)}
@@ -691,11 +696,11 @@ export function AnimationTimeline({ store }: AnimationTimelineProps) {
                         ? 'border-[#aa55cc] bg-[#f5e6ff] shadow-sm'
                         : 'border-[#e0ddd5] bg-white hover:border-[#d4d0c8]'
                   }`}
-                  style={{ cursor: state.isPlaying ? 'default' : 'grab' }}
+                  style={{ cursor: isPlaying ? 'default' : 'grab' }}
                   title={`Frame ${index + 1}${isCurrent ? ' (current)' : ''}`}
                 >
                   {/* Drag handle */}
-                  {!state.isPlaying && (
+                  {!isPlaying && (
                     <div className="absolute top-1 left-1 opacity-0 group-hover:opacity-30 transition-opacity">
                       <GripVertical className="h-3 w-3 text-[#8a8a8a]" />
                     </div>
@@ -722,12 +727,12 @@ export function AnimationTimeline({ store }: AnimationTimelineProps) {
                   )}
 
                   <Matrix
-                    rows={state.gridSize.rows}
-                    cols={state.gridSize.cols}
+                    rows={gridSize.rows}
+                    cols={gridSize.cols}
                     pattern={frame}
                     size={5}
                     gap={1}
-                    palette={state.palette}
+                    palette={palette}
                     glow={false}
                   />
                 </button>
@@ -737,8 +742,8 @@ export function AnimationTimeline({ store }: AnimationTimelineProps) {
         </div>
 
         <button
-          onClick={() => setCurrentFrame(state.currentFrameIndex + 1)}
-          disabled={state.currentFrameIndex === state.frames.length - 1}
+          onClick={() => setCurrentFrameIndex(currentFrameIndex + 1)}
+          disabled={currentFrameIndex === frames.length - 1}
           className="flex h-20 w-10 items-center justify-center rounded border border-[#e0ddd5] bg-white text-[#8a8a8a] disabled:opacity-30 hover:border-[#0066cc]/30 hover:text-[#0066cc] transition-all"
           title="Next frame (→)"
         >
@@ -752,7 +757,7 @@ export function AnimationTimeline({ store }: AnimationTimelineProps) {
           <div className="flex items-center gap-2">
             <Film className="h-3.5 w-3.5" />
             <span className="text-[9px] uppercase tracking-wider">
-              {state.frames.length} Frame{state.frames.length !== 1 ? 's' : ''}
+              {frames.length} Frame{frames.length !== 1 ? 's' : ''}
             </span>
           </div>
           {hasSelection && (
@@ -769,9 +774,9 @@ export function AnimationTimeline({ store }: AnimationTimelineProps) {
         <div className="text-[9px] font-mono text-[#8a8a8a]">
           Current:{' '}
           <span className="text-[#0066cc]">
-            {String(state.currentFrameIndex + 1).padStart(2, '0')}
+            {String(currentFrameIndex + 1).padStart(2, '0')}
           </span>{' '}
-          / {String(state.frames.length).padStart(2, '0')}
+          / {String(frames.length).padStart(2, '0')}
         </div>
       </div>
     </div>
