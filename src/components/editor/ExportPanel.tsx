@@ -1,9 +1,25 @@
 import { useState } from 'react'
-import { Copy, Check, Download, Code } from 'lucide-react'
+import { Copy, Check, Download, Code, FileCode, Braces } from 'lucide-react'
 import type { EditorStore } from '../../stores/editorStore'
 
 interface ExportPanelProps {
   store: EditorStore
+}
+
+// Screw head component
+function ScrewHead({ className = '' }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 12 12"
+      className={className}
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <circle cx="6" cy="6" r="5" fill="#ffffff" stroke="#e0ddd5" strokeWidth="1" />
+      <line x1="3" y1="6" x2="9" y2="6" stroke="#d4d0c8" strokeWidth="1" />
+      <line x1="6" y1="3" x2="6" y2="9" stroke="#d4d0c8" strokeWidth="1" />
+    </svg>
+  )
 }
 
 function formatFrame(frame: number[][]): string {
@@ -50,14 +66,14 @@ export function ExportPanel({ store }: ExportPanelProps) {
 
 const pattern: Frame = ${formatFrame(frame)};
 
-export function CustomIcon({ 
-  size = 6, 
-  gap = 1, 
-  animated = false 
-}: { 
-  size?: number; 
-  gap?: number; 
-  animated?: boolean; 
+export function CustomIcon({
+  size = 6,
+  gap = 1,
+  animated = false
+}: {
+  size?: number;
+  gap?: number;
+  animated?: boolean;
 }) {
   return (
     <Matrix
@@ -113,9 +129,17 @@ ${circles}</svg>`
   }
 
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white shadow-sm">
-      <div className="border-b border-zinc-200 px-4 py-3">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-900">
+    <div className="relative overflow-hidden rounded-lg border border-[#e0ddd5] bg-white shadow-sm">
+      {/* Corner Screw Heads */}
+      <ScrewHead className="absolute top-2 left-2 h-3 w-3 opacity-60" />
+      <ScrewHead className="absolute top-2 right-2 h-3 w-3 opacity-60" />
+      <ScrewHead className="absolute bottom-2 left-2 h-3 w-3 opacity-60" />
+      <ScrewHead className="absolute bottom-2 right-2 h-3 w-3 opacity-60" />
+
+      {/* Header */}
+      <div className="flex items-center gap-2 border-b border-[#e0ddd5] px-4 py-3 bg-[#f8f7f4]/50">
+        <FileCode className="h-4 w-4 text-[#7c3aed]" style={{ filter: 'drop-shadow(0 0 4px rgba(124, 58, 237, 0.3))' }} />
+        <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#2a2a2a]">
           Source Export
         </h3>
       </div>
@@ -125,65 +149,79 @@ ${circles}</svg>`
           {/* Copy Pattern */}
           <button
             onClick={() => copyToClipboard(generatePatternCode(), 'pattern')}
-            className="flex items-center justify-center gap-2 rounded border border-zinc-200 bg-white py-2 text-xs font-medium text-zinc-600 transition-all hover:border-zinc-400 hover:text-zinc-900"
+            className="relative flex items-center justify-center gap-2 rounded border border-[#e0ddd5] bg-white py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8a8a8a] transition-all hover:border-[#0066cc]/50 hover:text-[#0066cc] hover:shadow-sm"
           >
             {copied === 'pattern' ? (
-              <Check className="h-3 w-3 text-emerald-500" />
+              <>
+                <Check className="h-3.5 w-3.5 text-[#00aa55]" />
+                Copied
+              </>
             ) : (
-              <Copy className="h-3 w-3" />
+              <>
+                <Braces className="h-3.5 w-3.5" />
+                Pattern
+              </>
             )}
-            Copy Pattern
           </button>
 
-          {/* Copy Frames (if animated) */}
+          {/* Copy Frames */}
           <button
             onClick={() => copyToClipboard(generateFramesCode(), 'frames')}
-            className={`flex items-center justify-center gap-2 rounded border border-zinc-200 bg-white py-2 text-xs font-medium transition-all ${
+            className={`relative flex items-center justify-center gap-2 rounded border border-[#e0ddd5] bg-white py-2.5 text-[10px] font-bold uppercase tracking-wider transition-all ${
               state.frames.length > 1
-                ? 'text-zinc-600 hover:border-zinc-400 hover:text-zinc-900'
-                : 'cursor-not-allowed opacity-50'
+                ? 'text-[#8a8a8a] hover:border-[#0066cc]/50 hover:text-[#0066cc] hover:shadow-sm'
+                : 'cursor-not-allowed opacity-40'
             }`}
             disabled={state.frames.length <= 1}
           >
             {copied === 'frames' ? (
-              <Check className="h-3 w-3 text-emerald-500" />
+              <>
+                <Check className="h-3.5 w-3.5 text-[#00aa55]" />
+                Copied
+              </>
             ) : (
-              <Copy className="h-3 w-3" />
+              <>
+                <Copy className="h-3.5 w-3.5" />
+                Frames
+              </>
             )}
-            Copy Frames
           </button>
 
           {/* Copy Component */}
           <button
-            onClick={() =>
-              copyToClipboard(generateComponentCode(), 'component')
-            }
-            className="flex items-center justify-center gap-2 rounded border border-zinc-200 bg-white py-2 text-xs font-medium text-zinc-600 transition-all hover:border-zinc-400 hover:text-zinc-900"
+            onClick={() => copyToClipboard(generateComponentCode(), 'component')}
+            className="relative flex items-center justify-center gap-2 rounded border border-[#e0ddd5] bg-white py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8a8a8a] transition-all hover:border-[#0066cc]/50 hover:text-[#0066cc] hover:shadow-sm"
           >
             {copied === 'component' ? (
-              <Check className="h-3 w-3 text-emerald-500" />
+              <>
+                <Check className="h-3.5 w-3.5 text-[#00aa55]" />
+                Copied
+              </>
             ) : (
-              <Code className="h-3 w-3" />
+              <>
+                <Code className="h-3.5 w-3.5" />
+                Component
+              </>
             )}
-            Copy Component
           </button>
 
           {/* Download SVG */}
           <button
             onClick={downloadSVG}
-            className="flex items-center justify-center gap-2 rounded border border-zinc-200 bg-white py-2 text-xs font-medium text-zinc-600 transition-all hover:border-zinc-400 hover:text-zinc-900"
+            className="relative flex items-center justify-center gap-2 rounded border border-[#e0ddd5] bg-white py-2.5 text-[10px] font-bold uppercase tracking-wider text-[#8a8a8a] transition-all hover:border-[#7c3aed]/50 hover:text-[#7c3aed] hover:shadow-sm"
           >
-            <Download className="h-3 w-3" />
-            Download SVG
+            <Download className="h-3.5 w-3.5" />
+            SVG
           </button>
         </div>
 
         {/* Code Preview */}
-        <div className="relative overflow-hidden rounded border border-zinc-200 bg-zinc-50 p-3">
-          <div className="absolute right-0 top-0 rounded-bl border-b border-l border-zinc-200 bg-white px-2 py-1 text-[9px] font-bold text-zinc-400">
-            TYPESCRIPT
+        <div className="relative overflow-hidden rounded border border-[#e0ddd5] bg-[#f8f7f4] p-3">
+          {/* Language tag */}
+          <div className="absolute right-0 top-0 rounded-bl border-b border-l border-[#e0ddd5] bg-white px-2 py-1 text-[8px] font-bold uppercase tracking-wider text-[#8a8a8a]">
+            TypeScript
           </div>
-          <pre className="max-h-[150px] overflow-auto font-mono text-[10px] text-zinc-600">
+          <pre className="max-h-[150px] overflow-auto font-mono text-[10px] text-[#6a6a6a]">
             {generatePatternCode()}
           </pre>
         </div>

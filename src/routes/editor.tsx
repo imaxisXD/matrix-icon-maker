@@ -19,13 +19,13 @@ function EditorPage() {
   )
 
   return (
-    <div className="min-h-screen bg-zinc-50 pb-20 font-mono">
-      <div className="mx-auto max-w-[1600px] p-6 lg:p-8">
-        {/* Main Grid Layout */}
-        <div className="grid grid-cols-12 gap-8">
+    <div className="min-h-screen font-mono">
+      {/* Main Grid Layout */}
+      <div className="mx-auto max-w-[1800px] p-6">
+        <div className="grid grid-cols-12 gap-4">
           {/* LEFT: Toolbar */}
           <div className="col-span-12 lg:col-span-2">
-            <div className="sticky top-24">
+            <div className="sticky top-6">
               <EditorToolbar store={store} />
             </div>
           </div>
@@ -34,57 +34,74 @@ function EditorPage() {
           <div className="col-span-12 lg:col-span-6">
             <div className="flex flex-col gap-6">
               {/* Canvas Area */}
-              <div className="flex min-h-[500px] items-center justify-center rounded-lg border border-zinc-200 bg-zinc-100/50 p-8 shadow-inner">
-                <MatrixEditor store={store} size={28} gap={4} />
+              <div className="relative overflow-hidden rounded-lg border border-[#e0ddd5] bg-white shadow-sm">
+                {/* Corner Accents */}
+                <div className="absolute top-3 left-3 h-1.5 w-1.5 rounded-full border border-[#0066cc]/20" />
+                <div className="absolute top-3 right-3 h-1.5 w-1.5 rounded-full border border-[#0066cc]/20" />
+                <div className="absolute bottom-3 left-3 h-1.5 w-1.5 rounded-full border border-[#0066cc]/20" />
+                <div className="absolute bottom-3 right-3 h-1.5 w-1.5 rounded-full border border-[#0066cc]/20" />
+
+                <div className="flex min-h-[520px] items-center justify-center p-4">
+                  <MatrixEditor store={store} size={28} gap={4} />
+                </div>
               </div>
 
               {/* Controls Section */}
-              <div className="rounded-lg border border-zinc-200 bg-white shadow-sm">
-                <div className="flex border-b border-zinc-200">
+              <div className="rounded-lg border border-[#e0ddd5] bg-white shadow-sm overflow-hidden">
+                <div className="flex border-b border-[#e0ddd5] bg-[#f8f7f4]/50">
                   <button
                     onClick={() => setActiveTab('presets')}
-                    className={`flex items-center gap-2 border-r border-zinc-200 px-6 py-3 text-sm font-medium transition-colors ${
+                    className={`relative flex items-center gap-2 border-r border-[#e0ddd5] px-5 py-3 text-xs font-bold tracking-wider transition-all ${
                       activeTab === 'presets'
-                        ? 'bg-white text-zinc-900'
-                        : 'bg-zinc-50 text-zinc-500 hover:text-zinc-900'
+                        ? 'text-[#0066cc] bg-white'
+                        : 'text-[#8a8a8a] hover:text-[#6a6a6a]'
                     }`}
                   >
                     <LayoutGrid className="h-4 w-4" />
                     PRESETS
+                    {activeTab === 'presets' && (
+                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0066cc]" />
+                    )}
                   </button>
                   <button
                     onClick={() => setActiveTab('timeline')}
-                    className={`flex items-center gap-2 border-r border-zinc-200 px-6 py-3 text-sm font-medium transition-colors ${
+                    className={`relative flex items-center gap-2 border-r border-[#e0ddd5] px-5 py-3 text-xs font-bold tracking-wider transition-all ${
                       activeTab === 'timeline'
-                        ? 'bg-white text-zinc-900'
-                        : 'bg-zinc-50 text-zinc-500 hover:text-zinc-900'
+                        ? 'text-[#0066cc] bg-white'
+                        : 'text-[#8a8a8a] hover:text-[#6a6a6a]'
                     }`}
                   >
                     <Layers className="h-4 w-4" />
                     TIMELINE
+                    {activeTab === 'timeline' && (
+                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0066cc]" />
+                    )}
                   </button>
                   <button
                     onClick={() => setActiveTab('icons')}
-                    className={`flex items-center gap-2 border-r border-zinc-200 px-6 py-3 text-sm font-medium transition-colors ${
+                    className={`relative flex items-center gap-2 px-5 py-3 text-xs font-bold tracking-wider transition-all ${
                       activeTab === 'icons'
-                        ? 'bg-white text-zinc-900'
-                        : 'bg-zinc-50 text-zinc-500 hover:text-zinc-900'
+                        ? 'text-[#0066cc] bg-white'
+                        : 'text-[#8a8a8a] hover:text-[#6a6a6a]'
                     }`}
                   >
                     <Wand2 className="h-4 w-4" />
-                    ICONS
+                    ICON LIBRARY
+                    {activeTab === 'icons' && (
+                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0066cc]" />
+                    )}
                   </button>
                 </div>
 
-                <div className="p-4">
+                <div className="p-5">
                   {activeTab === 'presets' ? (
-                    <div className="h-[300px]">
+                    <div className="h-[280px]">
                       <PresetPatterns store={store} />
                     </div>
                   ) : activeTab === 'timeline' ? (
                     <AnimationTimeline store={store} />
                   ) : (
-                    <div className="h-[450px]">
+                    <div className="h-[420px]">
                       <IconBrowser store={store} />
                     </div>
                   )}
@@ -95,7 +112,7 @@ function EditorPage() {
 
           {/* RIGHT: Preview & Export */}
           <div className="col-span-12 lg:col-span-4">
-            <div className="flex flex-col gap-6 sticky top-24">
+            <div className="flex flex-col gap-6 sticky top-6">
               <IconPreview store={store} />
               <ExportPanel store={store} />
             </div>

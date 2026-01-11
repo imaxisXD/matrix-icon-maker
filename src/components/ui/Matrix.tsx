@@ -3,6 +3,13 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 
 export type Frame = number[][]
+
+export type OnionSkinLayer = {
+  frame: Frame
+  opacity: number
+  type: 'previous' | 'next'
+}
+
 type MatrixMode = 'default' | 'vu'
 
 interface CellPosition {
@@ -34,6 +41,7 @@ interface MatrixProps extends React.HTMLAttributes<HTMLDivElement> {
   bloomIntensity?: number // 0-100
   fadeIntensity?: number // 0-100
   transitionSpeed?: 'slow' | 'normal' | 'fast'
+  onionSkinLayers?: OnionSkinLayer[]
 }
 
 function clamp(value: number): number {
@@ -68,6 +76,12 @@ function useAnimation(
   const lastTimeRef = useRef<number>(0)
   const accumulatorRef = useRef<number>(0)
 
+  // Store onFrame in a ref to avoid unnecessary effect re-renders
+  const onFrameRef = useRef(options.onFrame)
+  useEffect(() => {
+    onFrameRef.current = options.onFrame
+  }, [options.onFrame])
+
   useEffect(() => {
     // Don't run animation if paused externally
     if (options.paused) {
@@ -100,14 +114,14 @@ function useAnimation(
           const next = prev + 1
           if (next >= frames.length) {
             if (options.loop) {
-              options.onFrame?.(0)
+              onFrameRef.current?.(0)
               return 0
             } else {
               setIsPlaying(false)
               return prev
             }
           }
-          options.onFrame?.(next)
+          onFrameRef.current?.(next)
           return next
         })
       }
@@ -127,7 +141,6 @@ function useAnimation(
     isPlaying,
     options.fps,
     options.loop,
-    options.onFrame,
     options.paused,
   ])
 
@@ -197,9 +210,10 @@ export function Matrix({
   mode = 'default',
   levels,
   glow = true,
-  bloomIntensity = 75,
-  fadeIntensity = 80,
+  bloomIntensity = 30,
+  fadeIntensity = 50,
   transitionSpeed = 'normal',
+  onionSkinLayers = [],
   className,
   ...props
 }: MatrixProps) {
@@ -208,6 +222,8 @@ export function Matrix({
   const pixelOnId = `matrix-pixel-on-${instanceId}`
   const pixelOffId = `matrix-pixel-off-${instanceId}`
   const glowId = `matrix-glow-${instanceId}`
+  const onionSkinPrevId = `matrix-onion-prev-${instanceId}`
+  const onionSkinNextId = `matrix-onion-next-${instanceId}`
 
   const { frameIndex } = useAnimation(frames, {
     fps,
@@ -217,6 +233,7 @@ export function Matrix({
     onFrame,
   })
 
+  // Memoize the current frame with stable references
   const currentFrame = useMemo(() => {
     if (mode === 'vu' && levels && levels.length > 0) {
       return ensureFrameSize(vu(cols, levels), rows, cols)
@@ -231,7 +248,7 @@ export function Matrix({
     }
 
     return ensureFrameSize([], rows, cols)
-  }, [pattern, frames, frameIndex, rows, cols, mode, levels])
+  }, [mode, levels, cols, rows, pattern, frames, frameIndex])
 
   const cellPositions = useMemo(() => {
     const positions: CellPosition[][] = []
@@ -257,6 +274,39 @@ export function Matrix({
   }, [rows, cols, size, gap])
 
   const isAnimating = !pattern && frames && frames.length > 0
+
+  // Memoize transition durations based on transitionSpeed prop
+  const transitionDurations = useMemo(() => {
+    const durations = {
+      slow: { opacity: '600ms', transform: '300ms', filter: '500ms' },
+      normal: { opacity: '450ms', transform: '200ms', filter: '350ms' },
+      fast: { opacity: '250ms', transform: '100ms', filter: '200ms' }
+    }
+    return durations[transitionSpeed]
+  }, [transitionSpeed])
+
+  // Build transition string once
+  const transitionString = useMemo(() => {
+    return `opacity ${transitionDurations.opacity} cubic-bezier(0.4, 0, 0.2, 1), transform ${transitionDurations.transform} cubic-bezier(0.4, 0, 0.2, 1), filter ${transitionDurations.filter} ease-out`
+  }, [transitionDurations])
+
+  // Pre-compute filter style strings for reuse
+  const filterStyles = useMemo(() => {
+    if (!glow || bloomIntensity <= 0) {
+      return {
+        high: 'none',
+        medium: 'none',
+        low: 'none',
+        none: 'none'
+      }
+    }
+    return {
+      high: `url(#${glowId}) drop-shadow(0 0 ${Math.round((2 * bloomIntensity) / 100)}px var(--matrix-on)) drop-shadow(0 0 ${Math.round((4 * bloomIntensity) / 100)}px var(--matrix-on)) drop-shadow(0 0 ${Math.round((8 * bloomIntensity) / 100)}px var(--matrix-on)) drop-shadow(0 0 ${Math.round((16 * bloomIntensity) / 100)}px var(--matrix-on))`,
+      medium: `drop-shadow(0 0 ${Math.round((1 * bloomIntensity) / 100)}px var(--matrix-on)) drop-shadow(0 0 ${Math.round((3 * bloomIntensity) / 100)}px var(--matrix-on)) drop-shadow(0 0 ${Math.round((6 * bloomIntensity) / 100)}px var(--matrix-on))`,
+      low: `drop-shadow(0 0 ${Math.round((1 * bloomIntensity) / 100)}px var(--matrix-on)) drop-shadow(0 0 ${Math.round((2 * bloomIntensity) / 100)}px var(--matrix-on))`,
+      none: 'none'
+    }
+  }, [glow, bloomIntensity, glowId])
 
   return (
     <div
@@ -343,37 +393,46 @@ export function Matrix({
             />
           </radialGradient>
 
-          {/* Enhanced bloom filter with multiple blur layers */}
-          {glow && (
-            <filter id={glowId} x="-100%" y="-100%" width="300%" height="300%">
+          {/* Onion skin gradient for previous frame (desaturated, warm tint) */}
+          <radialGradient id={onionSkinPrevId} cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="var(--matrix-on)" stopOpacity="0.6" />
+            <stop offset="40%" stopColor="var(--matrix-on)" stopOpacity="0.4" />
+            <stop offset="70%" stopColor="var(--matrix-on)" stopOpacity="0.2" />
+            <stop offset="100%" stopColor="var(--matrix-on)" stopOpacity="0.05" />
+          </radialGradient>
+
+          {/* Onion skin gradient for next frame (cool tint, cyan shift) */}
+          <radialGradient id={onionSkinNextId} cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="var(--matrix-on)" stopOpacity="0.5" />
+            <stop offset="40%" stopColor="var(--matrix-on)" stopOpacity="0.3" />
+            <stop offset="70%" stopColor="var(--matrix-on)" stopOpacity="0.15" />
+            <stop offset="100%" stopColor="var(--matrix-on)" stopOpacity="0.03" />
+          </radialGradient>
+
+          {/* Enhanced bloom filter with multiple blur layers - scaled by bloomIntensity */}
+          {glow && bloomIntensity > 0 && (
+            <filter id={glowId} x="-50%" y="-50%" width="200%" height="200%">
               {/* Inner bright core */}
               <feGaussianBlur
                 in="SourceGraphic"
-                stdDeviation="1"
+                stdDeviation={0.5 * (bloomIntensity / 100)}
                 result="blur1"
               />
               {/* Medium bloom spread */}
               <feGaussianBlur
                 in="SourceGraphic"
-                stdDeviation="3"
+                stdDeviation={1.5 * (bloomIntensity / 100)}
                 result="blur2"
               />
               {/* Outer soft bloom */}
               <feGaussianBlur
                 in="SourceGraphic"
-                stdDeviation="6"
+                stdDeviation={3 * (bloomIntensity / 100)}
                 result="blur3"
               />
-              {/* Far outer glow haze */}
-              <feGaussianBlur
-                in="SourceGraphic"
-                stdDeviation="10"
-                result="blur4"
-              />
 
-              {/* Merge all bloom layers */}
+              {/* Merge bloom layers */}
               <feMerge>
-                <feMergeNode in="blur4" />
                 <feMergeNode in="blur3" />
                 <feMergeNode in="blur2" />
                 <feMergeNode in="blur1" />
@@ -381,63 +440,72 @@ export function Matrix({
               </feMerge>
             </filter>
           )}
+
+          {/* Static CSS stylesheet - only created once per component mount */}
+          <style dangerouslySetInnerHTML={{
+            __html: `
+              .matrix-pixel {
+                transform-origin: center;
+                transform-box: fill-box;
+              }
+
+              .matrix-pixel-fading {
+                opacity: var(--matrix-fade-opacity, 0.075);
+                transition: opacity var(--matrix-fade-transition, 600ms) cubic-bezier(0.4, 0, 0.2, 1);
+              }
+
+              .onion-skin-layer {
+                pointer-events: none;
+              }
+
+              .onion-skin-previous {
+                filter: grayscale(0.5) sepia(0.15);
+              }
+
+              .onion-skin-next {
+                filter: hue-rotate(160deg) grayscale(0.3) saturate(1.2);
+              }
+            `
+          }} />
         </defs>
 
-        <style>
-          {`
-            .matrix-pixel {
-              transition: 
-                opacity ${transitionSpeed === 'slow' ? '600ms' : transitionSpeed === 'fast' ? '250ms' : '450ms'} cubic-bezier(0.4, 0, 0.2, 1),
-                transform ${transitionSpeed === 'slow' ? '300ms' : transitionSpeed === 'fast' ? '100ms' : '200ms'} cubic-bezier(0.4, 0, 0.2, 1),
-                filter ${transitionSpeed === 'slow' ? '500ms' : transitionSpeed === 'fast' ? '200ms' : '350ms'} ease-out;
-              transform-origin: center;
-              transform-box: fill-box;
-            }
-            
-            /* CSS-only bloom effect using drop-shadow layers - scaled by bloomIntensity */
-            .matrix-pixel-active-${instanceId} {
-              ${
-                glow && bloomIntensity > 0
-                  ? `filter: url(#${glowId}) 
-                drop-shadow(0 0 ${Math.round((2 * bloomIntensity) / 100)}px var(--matrix-on))
-                drop-shadow(0 0 ${Math.round((4 * bloomIntensity) / 100)}px var(--matrix-on))
-                drop-shadow(0 0 ${Math.round((8 * bloomIntensity) / 100)}px var(--matrix-on))
-                drop-shadow(0 0 ${Math.round((16 * bloomIntensity) / 100)}px var(--matrix-on));`
-                  : ''
-              }
-            }
-            
-            /* Medium intensity bloom */
-            .matrix-pixel-medium-${instanceId} {
-              ${
-                glow && bloomIntensity > 0
-                  ? `filter: 
-                drop-shadow(0 0 ${Math.round((1 * bloomIntensity) / 100)}px var(--matrix-on))
-                drop-shadow(0 0 ${Math.round((3 * bloomIntensity) / 100)}px var(--matrix-on))
-                drop-shadow(0 0 ${Math.round((6 * bloomIntensity) / 100)}px var(--matrix-on));`
-                  : ''
-              }
-            }
-            
-            /* Low intensity with subtle fade */
-            .matrix-pixel-low-${instanceId} {
-              ${
-                glow && bloomIntensity > 0
-                  ? `filter: 
-                drop-shadow(0 0 ${Math.round((1 * bloomIntensity) / 100)}px var(--matrix-on))
-                drop-shadow(0 0 ${Math.round((2 * bloomIntensity) / 100)}px var(--matrix-on));`
-                  : ''
-              }
-            }
-            
-            /* Fading out animation state */
-            .matrix-pixel-fading-${instanceId} {
-              opacity: ${((100 - fadeIntensity) / 100) * 0.15};
-              transition: opacity ${transitionSpeed === 'slow' ? '800ms' : transitionSpeed === 'fast' ? '300ms' : '600ms'} cubic-bezier(0.4, 0, 0.2, 1);
-            }
-          `}
-        </style>
+        {/* Onion skin layers - rendered before main frame */}
+        <g className="onion-skin-layer" style={{ pointerEvents: 'none' }}>
+          {onionSkinLayers.map((layer, layerIndex) => {
+            const layerFrame = ensureFrameSize(layer.frame, rows, cols)
+            const gradientId = layer.type === 'previous' ? onionSkinPrevId : onionSkinNextId
+            const layerClass = layer.type === 'previous' ? 'onion-skin-previous' : 'onion-skin-next'
 
+            return layerFrame.map((row, rowIndex) =>
+              row.map((value, colIndex) => {
+                const pos = cellPositions[rowIndex]?.[colIndex]
+                if (!pos || value <= 0.01) return null
+
+                const opacity = clamp(layer.opacity * value)
+                const scale = opacity > 0.7 ? 1.1 : opacity > 0.3 ? 1.05 : 1
+                const radius = (size / 2) * 0.85
+
+                return (
+                  <circle
+                    key={`onion-${layer.type}-${layerIndex}-${rowIndex}-${colIndex}`}
+                    className={layerClass}
+                    cx={pos.x + size / 2}
+                    cy={pos.y + size / 2}
+                    r={radius}
+                    fill={`url(#${gradientId})`}
+                    opacity={opacity}
+                    style={{
+                      transform: `scale(${scale})`,
+                      transition: transitionString,
+                    }}
+                  />
+                )
+              })
+            )
+          })}
+        </g>
+
+        {/* Main frame pixels */}
         {currentFrame.map((row, rowIndex) =>
           row.map((value, colIndex) => {
             const pos = cellPositions[rowIndex]?.[colIndex]
@@ -455,20 +523,17 @@ export function Matrix({
             const scale = isHighIntensity ? 1.15 : isMediumIntensity ? 1.08 : 1
             const radius = (size / 2) * 0.9
 
-            // Determine which bloom class to apply based on intensity
-            const getBloomClass = () => {
-              if (isHighIntensity) return `matrix-pixel-active-${instanceId}`
-              if (isMediumIntensity) return `matrix-pixel-medium-${instanceId}`
-              if (isLowIntensity) return `matrix-pixel-low-${instanceId}`
-              return ''
-            }
+            // Get filter style from pre-computed values
+            const filterStyle = isHighIntensity ? filterStyles.high :
+              isMediumIntensity ? filterStyles.medium :
+              isLowIntensity ? filterStyles.low :
+              filterStyles.none
 
             return (
               <circle
                 key={`${rowIndex}-${colIndex}`}
                 className={cn(
                   'matrix-pixel',
-                  getBloomClass(),
                   !isOn && 'opacity-20',
                 )}
                 cx={pos.x + size / 2}
@@ -478,6 +543,8 @@ export function Matrix({
                 opacity={isOn ? opacity : 0.08}
                 style={{
                   transform: `scale(${scale})`,
+                  filter: filterStyle,
+                  transition: transitionString,
                 }}
               />
             )

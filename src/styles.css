@@ -1,7 +1,23 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
 @import 'tailwindcss';
 
 @theme {
-  /* Define custom colors matching the plan */
+  /* Light Industrial Theme Color Palette */
+  --color-bg-primary: #f8f7f4;
+  --color-bg-panel: #ffffff;
+  --color-bg-surface: #f0efe9;
+  --color-border: #e0ddd5;
+  --color-border-dark: #d4d0c8;
+
+  /* Accent Colors */
+  --color-blue-primary: #0066cc;
+  --color-blue-dim: #004499;
+  --color-blue-subtle: #e6f0ff;
+  --color-orange-accent: #ff6b00;
+  --color-green-status: #00aa55;
+  --color-red-status: #dd3355;
+
+  /* Legacy colors for compatibility */
   --color-zinc-50: #fafafa;
   --color-zinc-100: #f4f4f5;
   --color-zinc-200: #e4e4e7;
@@ -9,17 +25,43 @@
   --color-zinc-900: #18181b;
   --color-zinc-950: #09090b;
 
-  --font-mono:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
-    'Courier New', monospace;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+:root {
+  --led-blue: #0066cc;
+  --led-orange: #ff6b00;
+  --led-green: #00aa55;
+  --grid-pattern: rgba(0, 102, 204, 0.04);
+  --panel-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.04);
+  --led-glow-blue: 0 0 8px rgba(0, 102, 204, 0.4);
+  --led-glow-orange: 0 0 8px rgba(255, 107, 0, 0.4);
 }
 
 body {
-  @apply m-0 bg-white text-zinc-900 antialiased;
-  font-family: var(--font-mono);
+  @apply m-0 antialiased;
+  background: var(--color-bg-primary);
+  color: #2a2a2a;
+  font-family: 'JetBrains Mono', var(--font-mono);
 }
 
-/* Scrollbar styling for a cleaner look */
+/* Subtle grid background */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image:
+    linear-gradient(var(--grid-pattern) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-pattern) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Light Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -30,5 +72,110 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-zinc-200 rounded-full hover:bg-zinc-300 transition-colors;
+  background: linear-gradient(180deg, #d4d0c8 0%, #c4c0b8 100%);
+  border: 2px solid transparent;
+  border-radius: 4px;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #c4c0b8 0%, #b4b0a8 100%);
+  background-clip: padding-box;
+}
+
+/* Selection styling */
+::selection {
+  background: rgba(0, 102, 204, 0.2);
+  color: var(--color-blue-primary);
+}
+
+/* Focus visible for accessibility */
+:focus-visible {
+  outline: 2px solid var(--color-blue-primary);
+  outline-offset: 2px;
+}
+
+/* Onion skin layers */
+.onion-skin-layer {
+  pointer-events: none;
+}
+
+.onion-skin-previous {
+  filter: grayscale(0.5) sepia(0.15);
+}
+
+.onion-skin-next {
+  filter: hue-rotate(160deg) grayscale(0.3) saturate(1.2);
+}
+
+/* Drag and drop styles */
+[draggable='true'] {
+  cursor: grab;
+}
+
+[draggable='true']:active {
+  cursor: grabbing;
+}
+
+.frame-dragging {
+  opacity: 0.5;
+  transform: scale(1.05);
+  box-shadow: 0 8px 16px rgba(0, 102, 204, 0.2);
+}
+
+.frame-drop-indicator {
+  position: absolute;
+  width: 3px;
+  height: 100%;
+  background: #0066cc;
+  box-shadow: 0 0 8px rgba(0, 102, 204, 0.5);
+}
+
+/* Frame selection */
+.frame-selected {
+  border-width: 2px;
+  box-shadow: 0 0 0 2px rgba(170, 85, 204, 0.2);
+}
+
+/* Thin scrollbar for timeline */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #d4d0c8 transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  height: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #d4d0c8;
+  border-radius: 2px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #c4c0b8;
+}
+
+/* Utility animations */
+@keyframes led-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes led-flicker {
+  0%, 100% { opacity: 1; }
+  92% { opacity: 1; }
+  93% { opacity: 0.85; }
+  94% { opacity: 1; }
+  96% { opacity: 0.92; }
+  97% { opacity: 1; }
 }
