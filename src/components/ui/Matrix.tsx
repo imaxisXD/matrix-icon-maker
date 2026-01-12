@@ -136,13 +136,7 @@ function useAnimation(
         cancelAnimationFrame(frameIdRef.current)
       }
     }
-  }, [
-    frames,
-    isPlaying,
-    options.fps,
-    options.loop,
-    options.paused,
-  ])
+  }, [frames, isPlaying, options.fps, options.loop, options.paused])
 
   useEffect(() => {
     setFrameIndex(0)
@@ -280,7 +274,7 @@ export function Matrix({
     const durations = {
       slow: { opacity: '600ms', transform: '300ms', filter: '500ms' },
       normal: { opacity: '450ms', transform: '200ms', filter: '350ms' },
-      fast: { opacity: '250ms', transform: '100ms', filter: '200ms' }
+      fast: { opacity: '250ms', transform: '100ms', filter: '200ms' },
     }
     return durations[transitionSpeed]
   }, [transitionSpeed])
@@ -297,14 +291,14 @@ export function Matrix({
         high: 'none',
         medium: 'none',
         low: 'none',
-        none: 'none'
+        none: 'none',
       }
     }
     return {
       high: `url(#${glowId}) drop-shadow(0 0 ${Math.round((2 * bloomIntensity) / 100)}px var(--matrix-on)) drop-shadow(0 0 ${Math.round((4 * bloomIntensity) / 100)}px var(--matrix-on)) drop-shadow(0 0 ${Math.round((8 * bloomIntensity) / 100)}px var(--matrix-on)) drop-shadow(0 0 ${Math.round((16 * bloomIntensity) / 100)}px var(--matrix-on))`,
       medium: `drop-shadow(0 0 ${Math.round((1 * bloomIntensity) / 100)}px var(--matrix-on)) drop-shadow(0 0 ${Math.round((3 * bloomIntensity) / 100)}px var(--matrix-on)) drop-shadow(0 0 ${Math.round((6 * bloomIntensity) / 100)}px var(--matrix-on))`,
       low: `drop-shadow(0 0 ${Math.round((1 * bloomIntensity) / 100)}px var(--matrix-on)) drop-shadow(0 0 ${Math.round((2 * bloomIntensity) / 100)}px var(--matrix-on))`,
-      none: 'none'
+      none: 'none',
     }
   }, [glow, bloomIntensity, glowId])
 
@@ -398,15 +392,27 @@ export function Matrix({
             <stop offset="0%" stopColor="var(--matrix-on)" stopOpacity="0.6" />
             <stop offset="40%" stopColor="var(--matrix-on)" stopOpacity="0.4" />
             <stop offset="70%" stopColor="var(--matrix-on)" stopOpacity="0.2" />
-            <stop offset="100%" stopColor="var(--matrix-on)" stopOpacity="0.05" />
+            <stop
+              offset="100%"
+              stopColor="var(--matrix-on)"
+              stopOpacity="0.05"
+            />
           </radialGradient>
 
           {/* Onion skin gradient for next frame (cool tint, cyan shift) */}
           <radialGradient id={onionSkinNextId} cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor="var(--matrix-on)" stopOpacity="0.5" />
             <stop offset="40%" stopColor="var(--matrix-on)" stopOpacity="0.3" />
-            <stop offset="70%" stopColor="var(--matrix-on)" stopOpacity="0.15" />
-            <stop offset="100%" stopColor="var(--matrix-on)" stopOpacity="0.03" />
+            <stop
+              offset="70%"
+              stopColor="var(--matrix-on)"
+              stopOpacity="0.15"
+            />
+            <stop
+              offset="100%"
+              stopColor="var(--matrix-on)"
+              stopOpacity="0.03"
+            />
           </radialGradient>
 
           {/* Enhanced bloom filter with multiple blur layers - scaled by bloomIntensity */}
@@ -442,8 +448,9 @@ export function Matrix({
           )}
 
           {/* Static CSS stylesheet - only created once per component mount */}
-          <style dangerouslySetInnerHTML={{
-            __html: `
+          <style
+            dangerouslySetInnerHTML={{
+              __html: `
               .matrix-pixel {
                 transform-origin: center;
                 transform-box: fill-box;
@@ -465,45 +472,52 @@ export function Matrix({
               .onion-skin-next {
                 filter: hue-rotate(160deg) grayscale(0.3) saturate(1.2);
               }
-            `
-          }} />
+            `,
+            }}
+          />
         </defs>
 
-        {/* Onion skin layers - rendered before main frame */}
-        <g className="onion-skin-layer" style={{ pointerEvents: 'none' }}>
-          {onionSkinLayers.map((layer, layerIndex) => {
-            const layerFrame = ensureFrameSize(layer.frame, rows, cols)
-            const gradientId = layer.type === 'previous' ? onionSkinPrevId : onionSkinNextId
-            const layerClass = layer.type === 'previous' ? 'onion-skin-previous' : 'onion-skin-next'
+        {/* Onion skin layers - rendered before main frame (skip if empty) */}
+        {onionSkinLayers.length > 0 && (
+          <g className="onion-skin-layer" style={{ pointerEvents: 'none' }}>
+            {onionSkinLayers.map((layer, layerIndex) => {
+              const layerFrame = ensureFrameSize(layer.frame, rows, cols)
+              const gradientId =
+                layer.type === 'previous' ? onionSkinPrevId : onionSkinNextId
+              const layerClass =
+                layer.type === 'previous'
+                  ? 'onion-skin-previous'
+                  : 'onion-skin-next'
 
-            return layerFrame.map((row, rowIndex) =>
-              row.map((value, colIndex) => {
-                const pos = cellPositions[rowIndex]?.[colIndex]
-                if (!pos || value <= 0.01) return null
+              return layerFrame.map((row, rowIndex) =>
+                row.map((value, colIndex) => {
+                  const pos = cellPositions[rowIndex]?.[colIndex]
+                  if (!pos || value <= 0.01) return null
 
-                const opacity = clamp(layer.opacity * value)
-                const scale = opacity > 0.7 ? 1.1 : opacity > 0.3 ? 1.05 : 1
-                const radius = (size / 2) * 0.85
+                  const opacity = clamp(layer.opacity * value)
+                  const scale = opacity > 0.7 ? 1.1 : opacity > 0.3 ? 1.05 : 1
+                  const radius = (size / 2) * 0.85
 
-                return (
-                  <circle
-                    key={`onion-${layer.type}-${layerIndex}-${rowIndex}-${colIndex}`}
-                    className={layerClass}
-                    cx={pos.x + size / 2}
-                    cy={pos.y + size / 2}
-                    r={radius}
-                    fill={`url(#${gradientId})`}
-                    opacity={opacity}
-                    style={{
-                      transform: `scale(${scale})`,
-                      transition: transitionString,
-                    }}
-                  />
-                )
-              })
-            )
-          })}
-        </g>
+                  return (
+                    <circle
+                      key={`onion-${layer.type}-${layerIndex}-${rowIndex}-${colIndex}`}
+                      className={layerClass}
+                      cx={pos.x + size / 2}
+                      cy={pos.y + size / 2}
+                      r={radius}
+                      fill={`url(#${gradientId})`}
+                      opacity={opacity}
+                      style={{
+                        transform: `scale(${scale})`,
+                        transition: transitionString,
+                      }}
+                    />
+                  )
+                }),
+              )
+            })}
+          </g>
+        )}
 
         {/* Main frame pixels */}
         {currentFrame.map((row, rowIndex) =>
@@ -524,18 +538,18 @@ export function Matrix({
             const radius = (size / 2) * 0.9
 
             // Get filter style from pre-computed values
-            const filterStyle = isHighIntensity ? filterStyles.high :
-              isMediumIntensity ? filterStyles.medium :
-              isLowIntensity ? filterStyles.low :
-              filterStyles.none
+            const filterStyle = isHighIntensity
+              ? filterStyles.high
+              : isMediumIntensity
+                ? filterStyles.medium
+                : isLowIntensity
+                  ? filterStyles.low
+                  : filterStyles.none
 
             return (
               <circle
                 key={`${rowIndex}-${colIndex}`}
-                className={cn(
-                  'matrix-pixel',
-                  !isOn && 'opacity-20',
-                )}
+                className={cn('matrix-pixel', !isOn && 'opacity-20')}
                 cx={pos.x + size / 2}
                 cy={pos.y + size / 2}
                 r={radius}

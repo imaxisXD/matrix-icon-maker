@@ -1,11 +1,11 @@
-import { useState, memo } from 'react'
+import { useState, memo, useEffect } from 'react'
 import {
   presets,
   presetCategories,
   type PresetPattern,
 } from '../../data/presets'
 import { Matrix } from '../ui/Matrix'
-import { useLoadActions } from '../../stores/editorStore'
+import { useLoadActions, useUIState } from '../../stores/editorStore'
 import { Search, Grid3x3, Activity } from 'lucide-react'
 
 interface PresetPatternsProps {
@@ -15,17 +15,29 @@ interface PresetPatternsProps {
 export const PresetPatterns = memo(function PresetPatterns({
   onPatternSelect,
 }: PresetPatternsProps) {
-  const [category, setCategory] = useState('all')
+  // Use Zustand for persistent category state
+  const { presetCategory, setPresetCategory } = useUIState()
+  // Local state for transient UI (search, hover)
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [hoveredId, setHoveredId] = useState<string | null>(null)
 
   const { loadFrames } = useLoadActions()
 
+  // Debounce search input for performance
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search)
+    }, 150)
+    return () => clearTimeout(timer)
+  }, [search])
+
   const filteredPresets = presets.filter((preset) => {
-    const matchesCategory = category === 'all' || preset.category === category
+    const matchesCategory =
+      presetCategory === 'all' || preset.category === presetCategory
     const matchesSearch = preset.name
       .toLowerCase()
-      .includes(search.toLowerCase())
+      .includes(debouncedSearch.toLowerCase())
     return matchesCategory && matchesSearch
   })
 
@@ -54,9 +66,9 @@ export const PresetPatterns = memo(function PresetPatterns({
             <button
               key={cat.id}
               type="button"
-              onClick={() => setCategory(cat.id)}
+              onClick={() => setPresetCategory(cat.id)}
               className={`rounded px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider transition-all border ${
-                category === cat.id
+                presetCategory === cat.id
                   ? 'border-[#0066cc] bg-[#e6f0ff] text-[#0066cc]'
                   : 'border-[#e0ddd5] bg-white text-[#8a8a8a] hover:border-[#d4d0c8] hover:text-[#6a6a6a]'
               }`}

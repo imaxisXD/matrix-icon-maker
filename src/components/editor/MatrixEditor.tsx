@@ -56,11 +56,13 @@ export function MatrixEditor({ size = 28, gap = 4 }: MatrixEditorProps) {
     [frames, currentFrameIndex, rows, cols],
   )
 
-  const onionSkinLayers = useMemo<Array<{
-    frame: number[][]
-    opacity: number
-    type: 'previous' | 'next'
-  }>>(() => {
+  const onionSkinLayers = useMemo<
+    Array<{
+      frame: number[][]
+      opacity: number
+      type: 'previous' | 'next'
+    }>
+  >(() => {
     if (!onionSkinEnabled) return []
 
     const layers: Array<{
@@ -255,16 +257,20 @@ export function MatrixEditor({ size = 28, gap = 4 }: MatrixEditorProps) {
     }
   }, [palette, gridVisibility, glow, size])
 
-  const getCellStyle = (value: number) => {
-    if (value <= 0.05) {
-      return cellStyles.offStyle
-    }
-    return cellStyles.getOnStyle(value)
-  }
+  // Memoize getCellStyle to prevent recreation on every render
+  const getCellStyle = useCallback(
+    (value: number) => {
+      if (value <= 0.05) {
+        return cellStyles.offStyle
+      }
+      return cellStyles.getOnStyle(value)
+    },
+    [cellStyles.offStyle, cellStyles.getOnStyle],
+  )
 
   // Calculate Matrix component size to match the editable grid
   const matrixSize = size // Same pixel size
-  const matrixGap = gap   // Same gap
+  const matrixGap = gap // Same gap
 
   return (
     <div className="relative">
@@ -553,7 +559,10 @@ export function MatrixEditor({ size = 28, gap = 4 }: MatrixEditorProps) {
                       if (value <= 0.01) return null
 
                       const opacity = layer.opacity * value
-                      const layerClass = layer.type === 'previous' ? 'onion-skin-previous' : 'onion-skin-next'
+                      const layerClass =
+                        layer.type === 'previous'
+                          ? 'onion-skin-previous'
+                          : 'onion-skin-next'
 
                       return (
                         <div
@@ -566,14 +575,15 @@ export function MatrixEditor({ size = 28, gap = 4 }: MatrixEditorProps) {
                             backgroundColor: palette.on,
                             opacity: opacity * 0.6,
                             transform: 'scale(0.9)',
-                            filter: layer.type === 'previous'
-                              ? 'grayscale(0.5) sepia(0.15)'
-                              : 'hue-rotate(160deg) grayscale(0.3) saturate(1.2)',
+                            filter:
+                              layer.type === 'previous'
+                                ? 'grayscale(0.5) sepia(0.15)'
+                                : 'hue-rotate(160deg) grayscale(0.3) saturate(1.2)',
                           }}
                         />
                       )
-                    })
-                  )
+                    }),
+                  ),
                 )}
               </div>
             )}

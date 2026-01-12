@@ -166,7 +166,7 @@ import {
   Eraser,
   type LucideIcon,
 } from 'lucide-react'
-import { useLoadActions } from '../../stores/editorStore'
+import { useLoadActions, useUIState } from '../../stores/editorStore'
 import { svgToMatrix } from '../../utils/svgToMatrix'
 import { Matrix } from '../ui/Matrix'
 
@@ -409,28 +409,44 @@ const GRID_SIZES = [
 
 export const IconBrowser = memo(function IconBrowser(_props: IconBrowserProps) {
   const { loadPattern, palette } = useLoadActions()
+  // Use Zustand for persistent preferences
+  const {
+    iconBrowserCategory,
+    iconBrowserThreshold,
+    iconBrowserGridSize,
+    setIconBrowserCategory,
+    setIconBrowserThreshold,
+    setIconBrowserGridSize,
+  } = useUIState()
+  // Local state for transient UI (search, hover, async operations)
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState('all')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [selectedIcon, setSelectedIcon] = useState<
     (typeof ICON_REGISTRY)[0] | null
   >(null)
-  const [threshold, setThreshold] = useState(0.15)
-  const [gridSize, setGridSize] = useState(9)
   const [previewFrame, setPreviewFrame] = useState<number[][] | null>(null)
   const [isConverting, setIsConverting] = useState(false)
   const iconRef = useRef<SVGSVGElement | null>(null)
 
-  // Filter icons
+  // Debounce search input for performance
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery)
+    }, 150)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  // Filter icons using debounced search
   const filteredIcons = useMemo(() => {
     return ICON_REGISTRY.filter((item) => {
       const matchesSearch = item.name
         .toLowerCase()
-        .includes(searchQuery.toLowerCase())
+        .includes(debouncedSearch.toLowerCase())
       const matchesCategory =
-        selectedCategory === 'all' || item.category === selectedCategory
+        iconBrowserCategory === 'all' || item.category === iconBrowserCategory
       return matchesSearch && matchesCategory
     })
-  }, [searchQuery, selectedCategory])
+  }, [debouncedSearch, iconBrowserCategory])
 
   // Convert selected icon to matrix preview
   const convertToMatrix = useCallback(async () => {
@@ -450,7 +466,7 @@ export const IconBrowser = memo(function IconBrowser(_props: IconBrowserProps) {
       // Calculate stroke width - thicker strokes for smaller grids
       // At 9x9, we need ~2.5px stroke to be visible
       // At 16x16, we can use standard 2px stroke
-      const scaledStrokeWidth = Math.max(1.5, 2.5 * (9 / gridSize))
+      const scaledStrokeWidth = Math.max(1.5, 2.5 * (9 / iconBrowserGridSize))
 
       // Apply stroke styles to SVG root and all child elements
       clone.style.fill = 'none'
@@ -473,11 +489,16 @@ export const IconBrowser = memo(function IconBrowser(_props: IconBrowserProps) {
 
       const svgString = new XMLSerializer().serializeToString(clone)
 
-      const frame = await svgToMatrix(svgString, gridSize, gridSize, {
-        threshold,
-        smooth: true,
-        invert: false,
-      })
+      const frame = await svgToMatrix(
+        svgString,
+        iconBrowserGridSize,
+        iconBrowserGridSize,
+        {
+          threshold: iconBrowserThreshold,
+          smooth: true,
+          invert: false,
+        },
+      )
 
       setPreviewFrame(frame)
     } catch (error) {
@@ -485,14 +506,14 @@ export const IconBrowser = memo(function IconBrowser(_props: IconBrowserProps) {
     } finally {
       setIsConverting(false)
     }
-  }, [selectedIcon, threshold, gridSize])
+  }, [selectedIcon, iconBrowserThreshold, iconBrowserGridSize])
 
   // Update preview when icon, threshold, or size changes
   useEffect(() => {
     if (selectedIcon) {
       convertToMatrix()
     }
-  }, [selectedIcon, threshold, gridSize, convertToMatrix])
+  }, [selectedIcon, iconBrowserThreshold, iconBrowserGridSize, convertToMatrix])
 
   // Apply to canvas
   const handleApply = useCallback(() => {
@@ -521,9 +542,9 @@ export const IconBrowser = memo(function IconBrowser(_props: IconBrowserProps) {
           {CATEGORIES.map((cat) => (
             <button
               key={cat.id}
-              onClick={() => setSelectedCategory(cat.id)}
+              onClick={() => setIconBrowserCategory(cat.id)}
               className={`whitespace-nowrap px-2 py-1 text-[10px] font-medium uppercase tracking-wide transition-colors ${
-                selectedCategory === cat.id
+                iconBrowserCategory === cat.id
                   ? 'bg-zinc-900 text-white'
                   : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
               }`}
@@ -583,9 +604,9 @@ export const IconBrowser = memo(function IconBrowser(_props: IconBrowserProps) {
                 {GRID_SIZES.map((size) => (
                   <button
                     key={size.value}
-                    onClick={() => setGridSize(size.value)}
+                    onClick={() => setIconBrowserGridSize(size.value)}
                     className={`px-2 py-1 text-xs font-medium border transition-all ${
-                      gridSize === size.value
+                      iconBrowserGridSize === size.value
                         ? 'border-zinc-900 bg-zinc-900 text-white'
                         : 'border-zinc-200 bg-white text-zinc-600 hover:border-zinc-400'
                     }`}
@@ -599,15 +620,17 @@ export const IconBrowser = memo(function IconBrowser(_props: IconBrowserProps) {
             {/* Threshold Slider */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-                Threshold: {Math.round(threshold * 100)}%
+                Threshold: {Math.round(iconBrowserThreshold * 100)}%
               </label>
               <input
                 type="range"
                 min="0"
                 max="0.5"
                 step="0.01"
-                value={threshold}
-                onChange={(e) => setThreshold(parseFloat(e.target.value))}
+                value={iconBrowserThreshold}
+                onChange={(e) =>
+                  setIconBrowserThreshold(parseFloat(e.target.value))
+                }
                 className="w-full h-2 bg-zinc-200 rounded-lg appearance-none cursor-pointer accent-zinc-900"
               />
             </div>
@@ -620,10 +643,10 @@ export const IconBrowser = memo(function IconBrowser(_props: IconBrowserProps) {
               <div className="flex justify-center p-2 border border-zinc-200 bg-zinc-50">
                 {previewFrame && !isConverting ? (
                   <Matrix
-                    rows={gridSize}
-                    cols={gridSize}
+                    rows={iconBrowserGridSize}
+                    cols={iconBrowserGridSize}
                     pattern={previewFrame}
-                    size={Math.floor(120 / gridSize)}
+                    size={Math.floor(120 / iconBrowserGridSize)}
                     gap={1}
                     palette={palette}
                     glow={false}

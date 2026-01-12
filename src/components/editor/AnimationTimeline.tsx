@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo, useEffect, memo } from 'react'
 import {
   Play,
   Pause,
@@ -15,12 +15,9 @@ import {
   HelpCircle,
   Keyboard,
 } from 'lucide-react'
-import type {
-  OnionSkinMode,
-  TweenEasing,
-} from '../../stores/editorStore'
+import type { OnionSkinMode, TweenEasing } from '../../stores/editorStore'
 import { useAnimationState } from '../../stores/editorStore'
-import { Matrix } from '../ui/Matrix'
+import { Matrix, type Frame } from '../ui/Matrix'
 
 interface AnimationTimelineProps {
   // No props needed - uses hooks directly
@@ -46,6 +43,117 @@ const SHORTCUTS = [
   { key: 'N', action: 'Add new frame' },
   { key: 'D', action: 'Duplicate current frame' },
 ] as const
+
+// Memoized frame card component for performance
+interface FrameCardProps {
+  frame: Frame
+  index: number
+  isSelected: boolean
+  isCurrent: boolean
+  isDragging: boolean
+  isDropTarget: boolean
+  isPlaying: boolean
+  gridSize: { rows: number; cols: number }
+  palette: { on: string; off: string }
+  dragFromIndex: number | null
+  onClick: (index: number, event: React.MouseEvent) => void
+  onDragStart: (index: number) => void
+  onDragOver: (index: number, event: React.DragEvent) => void
+  onDrop: (index: number, event: React.DragEvent) => void
+  onDragEnd: () => void
+}
+
+const FrameCard = memo(function FrameCard({
+  frame,
+  index,
+  isSelected,
+  isCurrent,
+  isDragging,
+  isDropTarget,
+  isPlaying,
+  gridSize,
+  palette,
+  dragFromIndex,
+  onClick,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+}: FrameCardProps) {
+  return (
+    <div className="relative">
+      {/* Drop indicator */}
+      {isDropTarget && (
+        <div
+          className="absolute left-0 top-0 bottom-0 w-0.5 bg-[#0066cc] -translate-x-1/2 z-10"
+          style={{
+            left:
+              dragFromIndex !== null && dragFromIndex < index
+                ? '-1px'
+                : 'calc(100% - 1px)',
+          }}
+        />
+      )}
+
+      <button
+        draggable={!isPlaying}
+        onDragStart={() => onDragStart(index)}
+        onDragOver={(e) => onDragOver(index, e)}
+        onDrop={(e) => onDrop(index, e)}
+        onDragEnd={onDragEnd}
+        onClick={(e) => onClick(index, e)}
+        className={`group relative flex flex-shrink-0 flex-col items-center gap-2 rounded-lg border p-3 transition-all ${
+          isDragging ? 'opacity-50 scale-105 shadow-lg' : ''
+        } ${
+          isCurrent
+            ? 'border-[#0066cc] bg-[#e6f0ff] shadow-sm'
+            : isSelected
+              ? 'border-[#aa55cc] bg-[#f5e6ff] shadow-sm'
+              : 'border-[#e0ddd5] bg-white hover:border-[#d4d0c8]'
+        }`}
+        style={{ cursor: isPlaying ? 'default' : 'grab' }}
+        title={`Frame ${index + 1}${isCurrent ? ' (current)' : ''}`}
+      >
+        {/* Drag handle */}
+        {!isPlaying && (
+          <div className="absolute top-1 left-1 opacity-0 group-hover:opacity-30 transition-opacity">
+            <GripVertical className="h-3 w-3 text-[#8a8a8a]" />
+          </div>
+        )}
+
+        {/* Frame number badge */}
+        <div
+          className={`absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded text-[9px] font-bold border ${
+            isCurrent
+              ? 'border-[#0066cc] bg-[#0066cc] text-white'
+              : isSelected
+                ? 'border-[#aa55cc] bg-[#aa55cc] text-white'
+                : 'border-[#e0ddd5] bg-white text-[#8a8a8a]'
+          }`}
+        >
+          {index + 1}
+        </div>
+
+        {/* Selection indicator */}
+        {isSelected && !isCurrent && (
+          <div className="absolute -bottom-1 -right-1 h-4 w-4 flex items-center justify-center rounded bg-[#aa55cc] text-white">
+            <div className="h-1.5 w-1.5 rounded-full bg-white" />
+          </div>
+        )}
+
+        <Matrix
+          rows={gridSize.rows}
+          cols={gridSize.cols}
+          pattern={frame}
+          size={5}
+          gap={1}
+          palette={palette}
+          glow={false}
+        />
+      </button>
+    </div>
+  )
+})
 
 export function AnimationTimeline(_props: AnimationTimelineProps) {
   // Use animation state hook - includes all necessary state
@@ -665,78 +773,24 @@ export function AnimationTimeline(_props: AnimationTimelineProps) {
             const isDropTarget = dragState.dropIndex === index
 
             return (
-              <div key={index} className="relative">
-                {/* Drop indicator */}
-                {isDropTarget && (
-                  <div
-                    className="absolute left-0 top-0 bottom-0 w-0.5 bg-[#0066cc] -translate-x-1/2 z-10"
-                    style={{
-                      left:
-                        dragState.fromIndex !== null &&
-                        dragState.fromIndex < index
-                          ? '-1px'
-                          : 'calc(100% - 1px)',
-                    }}
-                  />
-                )}
-
-                <button
-                  draggable={!isPlaying}
-                  onDragStart={() => handleDragStart(index)}
-                  onDragOver={(e) => handleDragOver(index, e)}
-                  onDrop={(e) => handleDrop(index, e)}
-                  onDragEnd={handleDragEnd}
-                  onClick={(e) => handleFrameClick(index, e)}
-                  className={`group relative flex flex-shrink-0 flex-col items-center gap-2 rounded-lg border p-3 transition-all ${
-                    isDragging ? 'opacity-50 scale-105 shadow-lg' : ''
-                  } ${
-                    isCurrent
-                      ? 'border-[#0066cc] bg-[#e6f0ff] shadow-sm'
-                      : isSelected
-                        ? 'border-[#aa55cc] bg-[#f5e6ff] shadow-sm'
-                        : 'border-[#e0ddd5] bg-white hover:border-[#d4d0c8]'
-                  }`}
-                  style={{ cursor: isPlaying ? 'default' : 'grab' }}
-                  title={`Frame ${index + 1}${isCurrent ? ' (current)' : ''}`}
-                >
-                  {/* Drag handle */}
-                  {!isPlaying && (
-                    <div className="absolute top-1 left-1 opacity-0 group-hover:opacity-30 transition-opacity">
-                      <GripVertical className="h-3 w-3 text-[#8a8a8a]" />
-                    </div>
-                  )}
-
-                  {/* Frame number badge */}
-                  <div
-                    className={`absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center rounded text-[9px] font-bold border ${
-                      isCurrent
-                        ? 'border-[#0066cc] bg-[#0066cc] text-white'
-                        : isSelected
-                          ? 'border-[#aa55cc] bg-[#aa55cc] text-white'
-                          : 'border-[#e0ddd5] bg-white text-[#8a8a8a]'
-                    }`}
-                  >
-                    {index + 1}
-                  </div>
-
-                  {/* Selection indicator */}
-                  {isSelected && !isCurrent && (
-                    <div className="absolute -bottom-1 -right-1 h-4 w-4 flex items-center justify-center rounded bg-[#aa55cc] text-white">
-                      <div className="h-1.5 w-1.5 rounded-full bg-white" />
-                    </div>
-                  )}
-
-                  <Matrix
-                    rows={gridSize.rows}
-                    cols={gridSize.cols}
-                    pattern={frame}
-                    size={5}
-                    gap={1}
-                    palette={palette}
-                    glow={false}
-                  />
-                </button>
-              </div>
+              <FrameCard
+                key={index}
+                frame={frame}
+                index={index}
+                isSelected={isSelected}
+                isCurrent={isCurrent}
+                isDragging={isDragging}
+                isDropTarget={isDropTarget}
+                isPlaying={isPlaying}
+                gridSize={gridSize}
+                palette={palette}
+                dragFromIndex={dragState.fromIndex}
+                onClick={handleFrameClick}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                onDragEnd={handleDragEnd}
+              />
             )
           })}
         </div>

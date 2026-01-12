@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { useShallow } from 'zustand/react/shallow'
 import type { Frame } from '../components/ui/Matrix'
-import { generateTweenFrames, deepCloneFrame } from '../utils/animation'
+import { generateTweenFrames } from '../utils/animation'
 
 export type TweenEasing =
   | 'linear'
@@ -74,6 +74,18 @@ interface HistoryState {
   historyIndex: number
 }
 
+// UI State (browser/preview preferences - consolidated from local React state)
+interface UIState {
+  // Icon Browser
+  iconBrowserCategory: string
+  iconBrowserThreshold: number
+  iconBrowserGridSize: number
+  // Preset Browser
+  presetCategory: string
+  // Preview
+  previewDarkBg: boolean
+}
+
 // ============ DEFAULT STATE ============
 
 const DEFAULT_ANIMATION: AnimationState = {
@@ -112,6 +124,14 @@ const DEFAULT_SELECTION: SelectionState = {
 const DEFAULT_HISTORY: HistoryState = {
   history: [],
   historyIndex: -1,
+}
+
+const DEFAULT_UI: UIState = {
+  iconBrowserCategory: 'all',
+  iconBrowserThreshold: 0.15,
+  iconBrowserGridSize: 9,
+  presetCategory: 'all',
+  previewDarkBg: false,
 }
 
 // ============ ACTIONS ============
@@ -169,6 +189,15 @@ interface HistoryActions {
   redo: () => void
 }
 
+interface UIActions {
+  setIconBrowserCategory: (category: string) => void
+  setIconBrowserThreshold: (threshold: number) => void
+  setIconBrowserGridSize: (size: number) => void
+  setPresetCategory: (category: string) => void
+  setPreviewDarkBg: (dark: boolean) => void
+  togglePreviewDarkBg: () => void
+}
+
 // ============ CREATE STORE ============
 
 interface EditorStore
@@ -178,11 +207,13 @@ interface EditorStore
     OnionSkinState,
     SelectionState,
     HistoryState,
+    UIState,
     AnimationActions,
     EditingActions,
     OnionSkinActions,
     SelectionActions,
-    HistoryActions {
+    HistoryActions,
+    UIActions {
   // Computed values (not stored, derived from state)
   currentFrame: Frame
   onionSkinLayers: Array<{
@@ -202,6 +233,7 @@ const useEditorStoreOriginal = create<EditorStore>()(
         ...DEFAULT_ONION_SKIN,
         ...DEFAULT_SELECTION,
         ...DEFAULT_HISTORY,
+        ...DEFAULT_UI,
 
         // ============ COMPUTED VALUES ============
         get currentFrame() {
@@ -365,20 +397,25 @@ const useEditorStoreOriginal = create<EditorStore>()(
 
         setPixel: (row, col, value) =>
           set((state) => {
-            const newFrames = cloneFrames(state.frames)
-            newFrames[state.currentFrameIndex][row][col] = value
+            // Only clone the affected frame, not all frames
+            const newFrames = [...state.frames]
+            const newFrame = cloneFrame(state.frames[state.currentFrameIndex])
+            newFrame[row][col] = value
+            newFrames[state.currentFrameIndex] = newFrame
             return { frames: newFrames }
           }),
 
         setPixelsBatch: (updates) =>
           set((state) => {
-            const newFrames = cloneFrames(state.frames)
-            const frame = newFrames[state.currentFrameIndex]
+            // Only clone the affected frame, not all frames
+            const newFrames = [...state.frames]
+            const newFrame = cloneFrame(state.frames[state.currentFrameIndex])
             updates.forEach(({ row, col, value }) => {
-              if (frame[row]?.[col] !== undefined) {
-                frame[row][col] = value
+              if (newFrame[row]?.[col] !== undefined) {
+                newFrame[row][col] = value
               }
             })
+            newFrames[state.currentFrameIndex] = newFrame
             return { frames: newFrames }
           }),
 
@@ -540,6 +577,18 @@ const useEditorStoreOriginal = create<EditorStore>()(
               historyIndex: state.historyIndex + 1,
             }
           }),
+
+        // ============ UI ACTIONS ============
+        setIconBrowserCategory: (category) =>
+          set({ iconBrowserCategory: category }),
+        setIconBrowserThreshold: (threshold) =>
+          set({ iconBrowserThreshold: Math.max(0, Math.min(0.5, threshold)) }),
+        setIconBrowserGridSize: (size) =>
+          set({ iconBrowserGridSize: Math.max(5, Math.min(32, size)) }),
+        setPresetCategory: (category) => set({ presetCategory: category }),
+        setPreviewDarkBg: (dark) => set({ previewDarkBg: dark }),
+        togglePreviewDarkBg: () =>
+          set((state) => ({ previewDarkBg: !state.previewDarkBg })),
       }),
       {
         name: 'editor-store',
@@ -678,6 +727,23 @@ const selectLoadActions = (state: EditorStore) => ({
   palette: state.palette,
 })
 
+const selectUISlice = (state: EditorStore) => ({
+  // Icon Browser
+  iconBrowserCategory: state.iconBrowserCategory,
+  iconBrowserThreshold: state.iconBrowserThreshold,
+  iconBrowserGridSize: state.iconBrowserGridSize,
+  setIconBrowserCategory: state.setIconBrowserCategory,
+  setIconBrowserThreshold: state.setIconBrowserThreshold,
+  setIconBrowserGridSize: state.setIconBrowserGridSize,
+  // Preset Browser
+  presetCategory: state.presetCategory,
+  setPresetCategory: state.setPresetCategory,
+  // Preview
+  previewDarkBg: state.previewDarkBg,
+  setPreviewDarkBg: state.setPreviewDarkBg,
+  togglePreviewDarkBg: state.togglePreviewDarkBg,
+})
+
 // Reusable hooks
 export function useToolbarState() {
   return useEditorStoreOriginal(useShallow(selectToolbarSlice))
@@ -701,6 +767,10 @@ export function useExportState() {
 
 export function useLoadActions() {
   return useEditorStoreOriginal(useShallow(selectLoadActions))
+}
+
+export function useUIState() {
+  return useEditorStoreOriginal(useShallow(selectUISlice))
 }
 
 // ============ EXPORT STORE ============
